@@ -40,6 +40,8 @@ def normalize_strength_name(strength_name: str) -> str:
     aliases = {
         "恆毅力": "勤奮",
         "毅力": "勤奮",
+        "堅毅": "勤奮",
+        "盡責": "勤奮",
         "善良": "仁慈",
         "感恩": "感激",
         "合作": "團體合作",

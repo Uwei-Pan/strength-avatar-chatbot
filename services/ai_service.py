@@ -1,14 +1,18 @@
 import json
 import os
 import re
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 
-from services.strength_service import detect_strengths_rule_based
+from services.strength_service import detect_strengths_rule_based, normalize_strength_name
 
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ENV_PATH = PROJECT_ROOT / ".env"
+
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 
 DEFAULT_RESULT = {
@@ -18,10 +22,40 @@ DEFAULT_RESULT = {
     "should_award_tokens": True,
     "tokens_earned": 10,
     "follow_up_question": "你想先說說最在意的是哪一件事嗎？",
+    "mode": "mock",
+    "error": "",
+}
+
+ALLOWED_STRENGTH_NAMES = {
+    "創造力",
+    "好奇心",
+    "判斷力",
+    "喜愛學習",
+    "洞察力",
+    "勇敢",
+    "勤奮",
+    "真誠",
+    "熱誠",
+    "愛與被愛",
+    "仁慈",
+    "社交智慧",
+    "團體合作",
+    "公平",
+    "領導力",
+    "寬恕",
+    "謙遜",
+    "審慎",
+    "自我規範",
+    "欣賞美好",
+    "感激",
+    "希望",
+    "幽默",
+    "靈性",
 }
 
 
 def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[str, Any]:
+    load_dotenv(dotenv_path=ENV_PATH, override=True)
     cleaned = message.strip()
     if not cleaned:
         return {
@@ -33,12 +67,12 @@ def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[s
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key or api_key == "your_gemini_api_key_here":
-        return _mock_analyze(cleaned)
+        return _mock_analyze(cleaned, "沒有偵測到 GEMINI_API_KEY，使用 mock mode。")
 
     try:
         return _analyze_with_gemini(child_profile, cleaned, api_key)
-    except Exception:
-        return _mock_analyze(cleaned)
+    except Exception as exc:
+        return _mock_analyze(cleaned, _format_gemini_error(exc))
 
 
 def _analyze_with_gemini(
@@ -46,11 +80,12 @@ def _analyze_with_gemini(
 ) -> dict[str, Any]:
     try:
         from google import genai
+        from google.genai import types
     except ImportError:
         return _mock_analyze(message)
 
     client = genai.Client(api_key=api_key)
-    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     strengths = [
         item.get("name_zh")
         for item in child_profile.get("owned_strengths", [])
@@ -65,6 +100,9 @@ def _analyze_with_gemini(
 
 孩子訊息：
 {message}
+
+只能使用以下 24 種優勢名稱，不可以創造其他名稱：
+{", ".join(sorted(ALLOWED_STRENGTH_NAMES))}
 
 請只回傳 JSON，不要加 Markdown。格式必須是：
 {{
@@ -89,9 +127,19 @@ def _analyze_with_gemini(
 - 如果孩子低落、自責或挫折，先承接情緒，不急著貼標籤。
 - detected_strengths 最多 2 個。
 """
-    response = client.models.generate_content(model=model, contents=prompt)
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            responseMimeType="application/json",
+            temperature=0.4,
+        ),
+    )
     raw_text = getattr(response, "text", "") or ""
-    return _normalize_result(_parse_json(raw_text), message)
+    result = _normalize_result(_parse_json(raw_text), message)
+    result["mode"] = "gemini"
+    result["error"] = ""
+    return result
 
 
 def _parse_json(raw_text: str) -> dict[str, Any]:
@@ -104,7 +152,7 @@ def _parse_json(raw_text: str) -> dict[str, Any]:
         return json.loads(match.group(0))
 
 
-def _mock_analyze(message: str) -> dict[str, Any]:
+def _mock_analyze(message: str, error: str = "") -> dict[str, Any]:
     detected = detect_strengths_rule_based(message)
     emotion = _guess_emotion(message)
     if emotion in {"挫折", "低落", "疲累"}:
@@ -131,9 +179,18 @@ def _mock_analyze(message: str) -> dict[str, Any]:
             "should_award_tokens": True,
             "tokens_earned": 10,
             "follow_up_question": follow_up,
+            "mode": "mock",
+            "error": error,
         },
         message,
     )
+
+
+def _format_gemini_error(exc: Exception) -> str:
+    message = str(exc)
+    if len(message) > 700:
+        message = message[:700] + "..."
+    return f"Gemini API 呼叫失敗，使用 mock mode：{type(exc).__name__}: {message}"
 
 
 def _guess_emotion(message: str) -> str:
@@ -153,14 +210,31 @@ def _normalize_result(result: dict[str, Any], message: str) -> dict[str, Any]:
     detected = normalized.get("detected_strengths")
     if not isinstance(detected, list):
         detected = []
-    normalized["detected_strengths"] = [
-        item
-        for item in detected[:2]
-        if isinstance(item, dict) and item.get("strength_name")
-    ]
+    normalized["detected_strengths"] = _clean_detected_strengths(detected)
     normalized["should_award_tokens"] = bool(normalized.get("should_award_tokens", True))
     normalized["tokens_earned"] = 10 if normalized["should_award_tokens"] else 0
     normalized["reply_to_child"] = str(normalized.get("reply_to_child") or DEFAULT_RESULT["reply_to_child"])
     normalized["emotion"] = str(normalized.get("emotion") or _guess_emotion(message))
     normalized["follow_up_question"] = str(normalized.get("follow_up_question") or "")
     return normalized
+
+
+def _clean_detected_strengths(detected: list[Any]) -> list[dict[str, Any]]:
+    cleaned: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in detected:
+        if not isinstance(item, dict) or not item.get("strength_name"):
+            continue
+
+        strength_name = normalize_strength_name(str(item["strength_name"]))
+        if strength_name not in ALLOWED_STRENGTH_NAMES or strength_name in seen:
+            continue
+
+        item = dict(item)
+        item["strength_name"] = strength_name
+        item["confidence"] = float(item.get("confidence") or 0.7)
+        cleaned.append(item)
+        seen.add(strength_name)
+        if len(cleaned) >= 2:
+            break
+    return cleaned

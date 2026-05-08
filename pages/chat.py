@@ -5,7 +5,8 @@ from services.ai_service import analyze_child_message
 from services.child_service import get_child
 from services.strength_service import save_chat_log, save_child_strength
 from services.token_service import award_chat_tokens
-
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 def render() -> None:
     child_id = st.session_state.get("child_id")
@@ -61,6 +62,10 @@ def render() -> None:
             return
 
         st.success(f"+{tokens_earned} tokens")
+        if result.get("mode") == "gemini":
+            st.caption("AI mode: Gemini")
+        else:
+            st.warning(result.get("error") or "AI mode: mock")
         st.markdown(f"**AI：** {result['reply_to_child']}")
         if result["follow_up_question"]:
             st.write(result["follow_up_question"])
