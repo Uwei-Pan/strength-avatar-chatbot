@@ -1,0 +1,163 @@
+{
+  "children": [
+    {
+      "id": "child_B",
+      "username": "studentB",
+      "password": "1234",
+      "name": "B生",
+      "tokens": 100,
+      "selected_character": "fox",
+      "selected_outfit": "perseverance_boots",
+      "owned_strengths": [
+        {
+          "strength_name": "勤奮",
+          "category": "勇氣",
+          "source": "counseling_record",
+          "evidence": "面對數學、地理、歷史與英文口說等任務時，即使一開始不情願、概念不熟或需要反覆修改，仍願意完成指定進度並持續複習。",
+          "outfit_reward": "perseverance_boots"
+        },
+        {
+          "strength_name": "自我規範",
+          "category": "節制",
+          "source": "counseling_record",
+          "evidence": "能在情緒起伏後逐漸穩定下來，也能在複習時控制自己專心看書，並嘗試主動安排想學或需要加強的內容。",
+          "outfit_reward": "self_regulation_shield"
+        },
+        {
+          "strength_name": "社交智慧",
+          "category": "仁愛",
+          "source": "counseling_record",
+          "evidence": "會主動與老師和同儕分享生活事件，也嘗試透過共同興趣與同學建立關係，並能較清楚表達自己在人際互動中的感受。",
+          "outfit_reward": "social_bridge_badge"
+        },
+        {
+          "strength_name": "喜愛學習",
+          "category": "智慧及知識",
+          "source": "counseling_record",
+          "evidence": "在複習地理、國文訂正與數學練習時，會主動做筆記、翻課本找答案，或多寫題目來確認自己是否理解。",
+          "outfit_reward": "learning_glasses"
+        },
+        {
+          "strength_name": "真誠",
+          "category": "勇氣",
+          "source": "counseling_record",
+          "evidence": "能直接表達自己被忽略的感受，也會坦率承認錯題是因為沒有認真看題目，展現對自身狀態的真實覺察。",
+          "outfit_reward": "honesty_badge"
+        }
+      ],
+      "unlocked_outfits": [
+        "perseverance_boots",
+        "self_regulation_shield",
+        "social_bridge_badge",
+        "learning_glasses",
+        "honesty_badge"
+      ]
+    },
+    {
+      "id": "child_C",
+      "username": "studentC",
+      "password": "1234",
+      "name": "C生",
+      "tokens": 100,
+      "selected_character": "cat",
+      "selected_outfit": "self_regulation_shield",
+      "owned_strengths": [
+        {
+          "strength_name": "自我規範",
+          "category": "節制",
+          "source": "counseling_record",
+          "evidence": "能準時進教室拿出作業、主動開始考卷或複習，也能在心情不好或周遭干擾時維持學習品質。",
+          "outfit_reward": "self_regulation_shield"
+        },
+        {
+          "strength_name": "勤奮",
+          "category": "勇氣",
+          "source": "counseling_record",
+          "evidence": "即使討厭英文、感到疲累或面對較難的理化與生物概念，仍會補做單字庫、完成複習，並主動求助直到理解。",
+          "outfit_reward": "perseverance_boots"
+        },
+        {
+          "strength_name": "社交智慧",
+          "category": "仁愛",
+          "source": "counseling_record",
+          "evidence": "會主動與老師和同儕聊天、分享興趣，也能察覺他人情緒與團體氣氛，並在適當時候調整自己的互動方式。",
+          "outfit_reward": "social_bridge_badge"
+        },
+        {
+          "strength_name": "熱誠",
+          "category": "勇氣",
+          "source": "counseling_record",
+          "evidence": "對道具、動漫、遊戲與活動展現高度投入，分享感興趣的內容時精神明顯提升，也能把活動轉化成學習動力。",
+          "outfit_reward": "zest_scarf"
+        },
+        {
+          "strength_name": "真誠",
+          "category": "勇氣",
+          "source": "counseling_record",
+          "evidence": "能坦然說出自己分心、後悔承擔任務、對某些概念不熟或需要協助，願意誠實面對自己的情緒與學習瓶頸。",
+          "outfit_reward": "honesty_badge"
+        }
+      ],
+      "unlocked_outfits": [
+        "self_regulation_shield",
+        "perseverance_boots",
+        "social_bridge_badge",
+        "zest_scarf",
+        "honesty_badge"
+      ]
+    },
+    {
+      "id": "child_D",
+      "username": "studentD",
+      "password": "1234",
+      "name": "D生",
+      "tokens": 100,
+      "selected_character": "rabbit",
+      "selected_outfit": "hope_compass",
+      "owned_strengths": [
+        {
+          "strength_name": "希望",
+          "category": "靈性及超越",
+          "source": "counseling_record",
+          "evidence": "對升學有明確目標，期待考上大安高工，並會根據模擬考成績調整目標與讀書方向。",
+          "outfit_reward": "hope_compass"
+        },
+        {
+          "strength_name": "勤奮",
+          "category": "勇氣",
+          "source": "counseling_record",
+          "evidence": "面對課業壓力、模擬考與較多作業時，仍能持續完成任務，甚至利用休息時間加強地理與其他弱項。",
+          "outfit_reward": "perseverance_boots"
+        },
+        {
+          "strength_name": "自我規範",
+          "category": "節制",
+          "source": "counseling_record",
+          "evidence": "能快速完成作業、安排剩餘時間練習，也能在同儕滑手機或教材缺漏時，維持自己的學習節奏並彈性調整。",
+          "outfit_reward": "self_regulation_shield"
+        },
+        {
+          "strength_name": "喜愛學習",
+          "category": "智慧及知識",
+          "source": "counseling_record",
+          "evidence": "會主動要求補充英文時態與化學莫耳觀念，並希望進一步理解自己尚未掌握的知識。",
+          "outfit_reward": "learning_glasses"
+        },
+        {
+          "strength_name": "好奇心",
+          "category": "智慧及知識",
+          "source": "counseling_record",
+          "evidence": "能覺察自己在英文與化學概念上的疑惑，主動提出問題、分享理解，並透過討論釐清觀念。",
+          "outfit_reward": "curiosity_hat"
+        }
+      ],
+      "unlocked_outfits": [
+        "hope_compass",
+        "perseverance_boots",
+        "self_regulation_shield",
+        "learning_glasses",
+        "curiosity_hat"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,220 @@
+{
+  "strengths": [
+    {
+      "id": "creativity",
+      "name_zh": "創造力",
+      "category": "智慧及知識",
+      "description": "能想出新的方法、點子或作品，讓事情有不同的可能。",
+      "suggestion": "今天可以試著用一個新方法完成小任務，或畫下你想到的新點子。",
+      "fruit_name": "創意果實",
+      "outfit_reward": "creativity_brush"
+    },
+    {
+      "id": "curiosity",
+      "name_zh": "好奇心",
+      "category": "智慧及知識",
+      "description": "願意提問、探索，想知道事情為什麼會這樣。",
+      "suggestion": "遇到不懂的事，可以先問一個「為什麼」或「怎麼做到」。",
+      "fruit_name": "好奇果實",
+      "outfit_reward": "curiosity_hat"
+    },
+    {
+      "id": "judgment",
+      "name_zh": "判斷力",
+      "category": "智慧及知識",
+      "description": "能停下來想一想，從不同角度看事情再做決定。",
+      "suggestion": "做決定前，可以試著列出兩個選項各自的好處和困難。",
+      "fruit_name": "判斷果實",
+      "outfit_reward": "judgment_lens"
+    },
+    {
+      "id": "love_of_learning",
+      "name_zh": "喜愛學習",
+      "category": "智慧及知識",
+      "description": "喜歡理解新知識，也願意多練習讓自己更懂。",
+      "suggestion": "挑一個今天想更懂的小知識，花五分鐘查一查或問問看。",
+      "fruit_name": "學習果實",
+      "outfit_reward": "learning_glasses"
+    },
+    {
+      "id": "perspective",
+      "name_zh": "洞察力",
+      "category": "智慧及知識",
+      "description": "能把經驗整理成想法，也能給出有幫助的觀點。",
+      "suggestion": "遇到一件事後，可以想想「我從這件事學到什麼」。",
+      "fruit_name": "洞察果實",
+      "outfit_reward": "perspective_map"
+    },
+    {
+      "id": "bravery",
+      "name_zh": "勇敢",
+      "category": "勇氣",
+      "description": "就算有點害怕或緊張，仍願意面對重要的事情。",
+      "suggestion": "今天可以選一件小小有點難的事，慢慢試一次。",
+      "fruit_name": "勇敢果實",
+      "outfit_reward": "bravery_cape"
+    },
+    {
+      "id": "perseverance",
+      "name_zh": "勤奮",
+      "category": "勇氣",
+      "description": "遇到困難時仍願意練習、完成任務，讓自己一步一步進步。",
+      "suggestion": "把一件困難任務切成很小的一步，先完成第一步就好。",
+      "fruit_name": "勤奮果實",
+      "outfit_reward": "perseverance_boots"
+    },
+    {
+      "id": "honesty",
+      "name_zh": "真誠",
+      "category": "勇氣",
+      "description": "能誠實表達自己的想法、感受與狀態。",
+      "suggestion": "可以試著用一句話說出你真正的感覺，例如「我其實有點擔心」。",
+      "fruit_name": "真誠果實",
+      "outfit_reward": "honesty_badge"
+    },
+    {
+      "id": "zest",
+      "name_zh": "熱誠",
+      "category": "勇氣",
+      "description": "對喜歡的事有活力，也願意投入其中。",
+      "suggestion": "找一件讓你有精神的小事，給自己十分鐘好好投入。",
+      "fruit_name": "熱誠果實",
+      "outfit_reward": "zest_scarf"
+    },
+    {
+      "id": "love",
+      "name_zh": "愛與被愛",
+      "category": "仁愛",
+      "description": "重視親近的人，也願意接住彼此的關心。",
+      "suggestion": "今天可以對一位重要的人說一句謝謝或關心的話。",
+      "fruit_name": "關愛果實",
+      "outfit_reward": "love_pin"
+    },
+    {
+      "id": "kindness",
+      "name_zh": "仁慈",
+      "category": "仁愛",
+      "description": "願意關心、幫助或安慰別人。",
+      "suggestion": "你可以試著今天對一位同學說一句鼓勵的話。",
+      "fruit_name": "仁慈果實",
+      "outfit_reward": "kindness_cloak"
+    },
+    {
+      "id": "social_intelligence",
+      "name_zh": "社交智慧",
+      "category": "仁愛",
+      "description": "能察覺自己和別人的感受，並調整互動方式。",
+      "suggestion": "聊天時可以觀察對方的表情，想想他現在可能需要什麼。",
+      "fruit_name": "社交果實",
+      "outfit_reward": "social_bridge_badge"
+    },
+    {
+      "id": "teamwork",
+      "name_zh": "團體合作",
+      "category": "公義",
+      "description": "願意和大家一起完成任務，也會重視隊友。",
+      "suggestion": "下次分組時，可以主動問一句「我可以負責哪一部分」。",
+      "fruit_name": "合作果實",
+      "outfit_reward": "teamwork_scarf"
+    },
+    {
+      "id": "fairness",
+      "name_zh": "公平",
+      "category": "公義",
+      "description": "重視每個人都被合理對待，不只想到自己。",
+      "suggestion": "遇到分配時，可以想想每個人的需要是否都有被看見。",
+      "fruit_name": "公平果實",
+      "outfit_reward": "fairness_scale"
+    },
+    {
+      "id": "leadership",
+      "name_zh": "領導力",
+      "category": "公義",
+      "description": "能協助大家整理方向，帶著團隊往前。",
+      "suggestion": "當大家不知道怎麼開始時，可以先提一個小步驟。",
+      "fruit_name": "領導果實",
+      "outfit_reward": "leadership_flag"
+    },
+    {
+      "id": "forgiveness",
+      "name_zh": "寬恕",
+      "category": "節制",
+      "description": "願意慢慢放下受傷或不舒服，不一直困在責怪裡。",
+      "suggestion": "如果還不能原諒也沒關係，可以先說出自己受傷的地方。",
+      "fruit_name": "寬恕果實",
+      "outfit_reward": "forgiveness_leaf"
+    },
+    {
+      "id": "humility",
+      "name_zh": "謙遜",
+      "category": "節制",
+      "description": "知道自己的長處，也願意承認還有能學習的地方。",
+      "suggestion": "完成一件事後，可以想想哪裡做得好、哪裡還能更好。",
+      "fruit_name": "謙遜果實",
+      "outfit_reward": "humility_patch"
+    },
+    {
+      "id": "prudence",
+      "name_zh": "審慎",
+      "category": "節制",
+      "description": "行動前會想一想，避免讓自己或別人受傷。",
+      "suggestion": "做重要決定前，可以先停三秒，想想可能的後果。",
+      "fruit_name": "審慎果實",
+      "outfit_reward": "prudence_lantern"
+    },
+    {
+      "id": "self_regulation",
+      "name_zh": "自我規範",
+      "category": "節制",
+      "description": "能管理自己的情緒、注意力或行動，讓自己慢慢穩定。",
+      "suggestion": "如果心情亂，可以先深呼吸三次，再決定下一步。",
+      "fruit_name": "規範果實",
+      "outfit_reward": "self_regulation_shield"
+    },
+    {
+      "id": "appreciation_of_beauty",
+      "name_zh": "欣賞美好",
+      "category": "靈性及超越",
+      "description": "能注意生活裡美麗、特別或讓人感動的事物。",
+      "suggestion": "今天可以找一個你覺得漂亮或有趣的小細節。",
+      "fruit_name": "美好果實",
+      "outfit_reward": "beauty_camera"
+    },
+    {
+      "id": "gratitude",
+      "name_zh": "感激",
+      "category": "靈性及超越",
+      "description": "能看見別人的付出，並感受到謝意。",
+      "suggestion": "今天可以向一個幫助你的人說謝謝。",
+      "fruit_name": "感激果實",
+      "outfit_reward": "gratitude_badge"
+    },
+    {
+      "id": "hope",
+      "name_zh": "希望",
+      "category": "靈性及超越",
+      "description": "相信未來仍有可能，也願意朝目標前進。",
+      "suggestion": "想一個你希望變好的地方，寫下一個今天能做的小步驟。",
+      "fruit_name": "希望果實",
+      "outfit_reward": "hope_compass"
+    },
+    {
+      "id": "humor",
+      "name_zh": "幽默",
+      "category": "靈性及超越",
+      "description": "能用輕鬆有趣的方式看事情，讓氣氛變柔和。",
+      "suggestion": "今天可以分享一件讓你微笑的小事。",
+      "fruit_name": "幽默果實",
+      "outfit_reward": "humor_button"
+    },
+    {
+      "id": "spirituality",
+      "name_zh": "靈性",
+      "category": "靈性及超越",
+      "description": "能感覺自己和更大的意義、信念或價值有連結。",
+      "suggestion": "可以想想一件對你很重要、讓你想努力的原因。",
+      "fruit_name": "靈性果實",
+      "outfit_reward": "spirit_star"
+    }
+  ]
+}
