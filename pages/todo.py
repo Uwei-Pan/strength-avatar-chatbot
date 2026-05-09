@@ -19,14 +19,14 @@ def render() -> None:
         st.error("請先登入。")
         return
 
-    st.title("Todo List")
+    st.title("任務小清單")
     st.caption(f"目前代幣：{child['tokens']}")
 
     with st.form("todo_form", clear_on_submit=True):
         title = st.text_input("任務名稱")
         description = st.text_area("補充說明", height=80)
         due_date = st.date_input("截止日期", value=None)
-        reward = st.number_input("完成獎勵 tokens", min_value=1, max_value=50, value=10)
+        reward = st.number_input("完成獎勵代幣", min_value=1, max_value=50, value=10)
         submitted = st.form_submit_button("新增任務")
 
     if submitted:
@@ -67,7 +67,7 @@ def render() -> None:
                 st.write(f"**{todo['title']}**")
                 if todo.get("description"):
                     st.caption(todo["description"])
-                meta = f"{label}｜獎勵 {todo['tokens_reward']} tokens"
+                meta = f"{label}｜獎勵 {todo['tokens_reward']} 代幣"
                 if todo.get("due_date"):
                     meta += f"｜截止 {todo['due_date']}"
                 st.caption(meta)
@@ -80,5 +80,5 @@ def render() -> None:
                     except (DatabaseConnectionError, ValueError) as exc:
                         st.error(str(exc))
                     else:
-                        st.success(f"完成任務，獲得 +{earned} tokens")
+                        st.success(f"完成任務，獲得 +{earned} 代幣")
                         st.rerun()

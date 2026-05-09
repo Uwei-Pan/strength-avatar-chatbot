@@ -5,8 +5,8 @@ from services.child_service import authenticate_child
 
 
 def render() -> None:
-    st.title("兒少優勢探索 AI")
-    st.caption("MVP demo login")
+    st.title("優勢探索小幫手")
+    st.caption("請用試用帳號登入")
 
     with st.form("login_form"):
         username = st.text_input("帳號", value="studentB")
@@ -30,4 +30,4 @@ def render() -> None:
         st.rerun()
 
     st.divider()
-    st.write("Demo 帳號：`studentB`、`studentC`、`studentD`，密碼都是 `1234`。")
+    st.write("試用帳號：`studentB`、`studentC`、`studentD`，密碼都是 `1234`。")

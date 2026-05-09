@@ -14,18 +14,18 @@ PAGES = {
 }
 
 PAGE_LABELS = {
-    "dashboard": "Dashboard",
-    "chat": "Chat",
-    "snake_game": "Snake Game",
-    "character": "Character / Outfit",
-    "diary": "Diary",
-    "todo": "Todo List",
-    "shop": "Shop",
+    "dashboard": "我的首頁",
+    "chat": "和小幫手聊聊",
+    "snake_game": "優勢果實遊戲",
+    "character": "角色與服裝",
+    "diary": "心情日記",
+    "todo": "任務小清單",
+    "shop": "服裝商店",
 }
 
 
 def main() -> None:
-    st.set_page_config(page_title="兒少優勢探索 AI", page_icon="★", layout="wide")
+    st.set_page_config(page_title="優勢探索日記", page_icon="★", layout="wide")
     _inject_style()
 
     if "page" not in st.session_state:
@@ -36,11 +36,19 @@ def main() -> None:
         return
 
     with st.sidebar:
-        st.title("優勢探索")
-        for page_key, label in PAGE_LABELS.items():
-            if st.button(label, use_container_width=True):
-                st.session_state["page"] = page_key
-                st.rerun()
+        st.title("功能選單")
+        current_page = st.session_state.get("page", "dashboard")
+        page_keys = list(PAGE_LABELS.keys())
+        selected_page = st.radio(
+            "頁面",
+            options=page_keys,
+            format_func=lambda page_key: PAGE_LABELS[page_key],
+            index=page_keys.index(current_page) if current_page in page_keys else 0,
+            label_visibility="collapsed",
+        )
+        if selected_page != current_page:
+            st.session_state["page"] = selected_page
+            st.rerun()
         st.divider()
         if st.button("登出", use_container_width=True):
             for key in ["child_id", "page", "snake_state", "snake_started", "snake_saved"]:

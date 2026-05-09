@@ -21,7 +21,7 @@ def render() -> None:
         return
 
     st.title("優勢果實貪吃蛇")
-    st.caption("開始遊戲需要 5 tokens，分數達 30 可獲得 10 tokens。")
+    st.caption("開始遊戲需要 5 代幣，分數達 30 可獲得 10 代幣。")
     st.metric("目前代幣", child["tokens"])
 
     if "snake_state" not in st.session_state:
@@ -125,8 +125,6 @@ def _render_board(state: dict) -> None:
     <div class="snake-board"><table>{"".join(html_rows)}</table></div>
     """
     st.html(html)
-
-
 def _finish_current_game(child_id: str, state: dict) -> None:
     if st.session_state.get("snake_saved"):
         return
@@ -140,6 +138,6 @@ def _finish_current_game(child_id: str, state: dict) -> None:
     st.session_state["snake_started"] = False
     st.session_state["snake_state"] = None
     if result["tokens_earned"]:
-        st.success(f"本局獲得 +{result['tokens_earned']} tokens")
+        st.success(f"本局獲得 +{result['tokens_earned']} 代幣")
     else:
         st.info("本局已儲存，分數達 30 就能拿到獎勵。")

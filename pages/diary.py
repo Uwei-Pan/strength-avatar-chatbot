@@ -29,22 +29,22 @@ def render() -> None:
     if submitted:
         cleaned = content.strip()
         if len(cleaned) < 3:
-            st.warning("可以多寫一點點，讓 AI 更了解你今天的狀態。")
+            st.warning("可以多寫一點點，讓小幫手更了解你今天的狀態。")
         else:
             try:
                 result = create_diary_entry(child, cleaned)
             except DatabaseConnectionError as exc:
                 st.error(str(exc))
             else:
-                st.success(f"日記已儲存，獲得 +{result['tokens_earned']} tokens")
+                st.success(f"日記已儲存，獲得 +{result['tokens_earned']} 代幣")
                 if result.get("mode") == "gemini":
-                    st.caption("AI mode: Gemini")
+                    st.caption("智慧小幫手已連線")
                 elif result.get("error"):
-                    st.warning(result["error"])
-                st.markdown(f"**AI：** {result['reply_to_child']}")
+                    st.warning("智慧小幫手暫時連不上，先用練習回覆陪你整理。")
+                st.markdown(f"**小幫手：** {result['reply_to_child']}")
                 if result["detected_strengths"]:
                     st.write("這篇日記可能看到：")
-                    st.write("、".join(item["strength_name"] for item in result["detected_strengths"]))
+                    _render_strength_chips(result["detected_strengths"])
 
     st.subheader("最近的日記")
     try:
@@ -58,13 +58,14 @@ def render() -> None:
         return
 
     for entry in entries:
-        with st.expander(f"{entry['created_at']}｜+{entry['tokens_earned']} tokens"):
+        with st.expander(f"{entry['created_at']}｜+{entry['tokens_earned']} 代幣"):
             st.write(entry["content"])
             if entry.get("ai_reply"):
-                st.markdown(f"**AI：** {entry['ai_reply']}")
+                st.markdown(f"**小幫手：** {entry['ai_reply']}")
             strengths = _parse_strengths(entry.get("detected_strengths_json"))
             if strengths:
-                st.caption("優勢：" + "、".join(item["strength_name"] for item in strengths))
+                st.caption("優勢")
+                _render_strength_chips(strengths)
 
 
 def _parse_strengths(raw_value):
@@ -76,3 +77,10 @@ def _parse_strengths(raw_value):
         return json.loads(raw_value)
     except (TypeError, json.JSONDecodeError):
         return []
+
+
+def _render_strength_chips(strengths: list[dict]) -> None:
+    cols = st.columns(min(len(strengths), 4))
+    for index, strength in enumerate(strengths):
+        with cols[index % len(cols)]:
+            st.caption(strength.get("strength_name", "優勢"))

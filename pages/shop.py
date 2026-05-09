@@ -19,7 +19,7 @@ def render() -> None:
         st.error("請先登入。")
         return
 
-    st.title("商城")
+    st.title("服裝商店")
     st.caption(f"目前代幣：{child['tokens']}")
 
     owned = [item for item in outfits if item["is_owned"]]
@@ -35,9 +35,9 @@ def render() -> None:
                 cols = st.columns([4, 1, 1])
                 with cols[0]:
                     st.write(f"**{outfit['display_name']}**")
-                    detail = outfit["outfit_id"]
+                    detail = "可以讓角色換上新的樣子"
                     if outfit.get("strength_name"):
-                        detail += f"｜相關優勢：{outfit['strength_name']}"
+                        detail = f"相關優勢：{outfit['strength_name']}"
                     st.caption(detail)
                 with cols[1]:
                     st.metric("價格", int(outfit["cost"]))
@@ -57,7 +57,7 @@ def render() -> None:
         for outfit in owned:
             with st.container(border=True):
                 st.write(f"**{outfit['display_name']}**")
-                caption = outfit["outfit_id"]
+                caption = "已經可以在角色頁使用"
                 if outfit.get("strength_name"):
-                    caption += f"｜相關優勢：{outfit['strength_name']}"
+                    caption = f"相關優勢：{outfit['strength_name']}"
                 st.caption(caption)

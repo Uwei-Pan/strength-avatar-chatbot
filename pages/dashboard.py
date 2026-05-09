@@ -4,14 +4,12 @@ from database.db_connection import DatabaseConnectionError
 from services.child_service import get_child
 
 
-FEATURES = [
-    ("Chat", "chat"),
-    ("Snake Game", "snake_game"),
-    ("Character / Outfit", "character"),
-    ("Diary", "diary"),
-    ("Todo List", "todo"),
-    ("Shop", "shop"),
-]
+CHARACTER_LABELS = {
+    "fox": "狐狸",
+    "cat": "貓咪",
+    "rabbit": "兔子",
+    "inventor": "小小發明家",
+}
 
 
 def render() -> None:
@@ -29,8 +27,8 @@ def render() -> None:
     st.title(f"{child['name']}的優勢基地")
     col1, col2, col3 = st.columns(3)
     col1.metric("代幣", child["tokens"])
-    col2.metric("角色", child["selected_character"])
-    col3.metric("服裝", child["selected_outfit"] or "尚未選擇")
+    col2.metric("角色", CHARACTER_LABELS.get(child["selected_character"], child["selected_character"]))
+    col3.metric("服裝", _selected_outfit_name(child))
 
     st.subheader("已擁有的優勢")
     unique_strengths = {}
@@ -43,12 +41,12 @@ def render() -> None:
                 st.write(strength["evidence_text"])
                 st.caption(f"來源：{strength['source']}")
     else:
-        st.info("還沒有儲存的優勢 evidence。")
+        st.info("還沒有儲存的優勢紀錄。")
 
-    st.subheader("功能入口")
-    cols = st.columns(3)
-    for index, (label, page_key) in enumerate(FEATURES):
-        with cols[index % 3]:
-            if st.button(label, use_container_width=True):
-                st.session_state["page"] = page_key
-                st.rerun()
+
+def _selected_outfit_name(child: dict) -> str:
+    selected = child.get("selected_outfit")
+    for outfit in child.get("unlocked_outfits", []):
+        if outfit["outfit_id"] == selected:
+            return outfit["display_name"]
+    return "尚未選擇"

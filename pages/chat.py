@@ -5,8 +5,7 @@ from services.ai_service import analyze_child_message
 from services.child_service import get_child
 from services.strength_service import save_chat_log, save_child_strength
 from services.token_service import award_chat_tokens
-from dotenv import load_dotenv
-load_dotenv(override=True)
+
 
 def render() -> None:
     child_id = st.session_state.get("child_id")
@@ -20,7 +19,7 @@ def render() -> None:
         st.error("請先登入。")
         return
 
-    st.title("和 AI 說說今天")
+    st.title("和小幫手說說今天")
     st.caption(f"目前代幣：{child['tokens']}")
 
     with st.form("chat_form", clear_on_submit=True):
@@ -61,12 +60,12 @@ def render() -> None:
             st.error(str(exc))
             return
 
-        st.success(f"+{tokens_earned} tokens")
+        st.success(f"獲得 +{tokens_earned} 代幣")
         if result.get("mode") == "gemini":
-            st.caption("AI mode: Gemini")
+            st.caption("智慧小幫手已連線")
         else:
-            st.warning(result.get("error") or "AI mode: mock")
-        st.markdown(f"**AI：** {result['reply_to_child']}")
+            st.warning("智慧小幫手暫時連不上，先用練習回覆陪你聊。")
+        st.markdown(f"**小幫手：** {result['reply_to_child']}")
         if result["follow_up_question"]:
             st.write(result["follow_up_question"])
         if result["detected_strengths"]:
