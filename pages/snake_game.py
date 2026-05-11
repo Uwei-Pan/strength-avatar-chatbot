@@ -101,14 +101,21 @@ def _render_board(state: dict) -> None:
     cells = render_cells(state)
     html_rows = []
     for row in cells:
-        html_cells = "".join(f"<td>{cell}</td>" for cell in row)
+        html_cells = "".join(
+            f"<td><span>{cell or '&nbsp;'}</span></td>"
+            for cell in row
+        )
         html_rows.append(f"<tr>{html_cells}</tr>")
     html = f"""
     <style>
+    .snake-board {{
+        width: min(92vw, 420px);
+        height: min(92vw, 420px);
+    }}
     .snake-board table {{
         border-collapse: collapse;
-        width: min(92vw, 420px);
-        aspect-ratio: 1 / 1;
+        width: 100%;
+        height: 100%;
         table-layout: fixed;
         background: #f6fbf5;
     }}
@@ -120,11 +127,24 @@ def _render_board(state: dict) -> None:
         color: #245b35;
         width: 10%;
         height: 10%;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }}
+    .snake-board span {{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        line-height: 1;
     }}
     </style>
     <div class="snake-board"><table>{"".join(html_rows)}</table></div>
     """
     st.html(html)
+
+
 def _finish_current_game(child_id: str, state: dict) -> None:
     if st.session_state.get("snake_saved"):
         return
