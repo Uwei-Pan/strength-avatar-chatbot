@@ -140,6 +140,21 @@ def get_child_strengths(child_id: str) -> list[dict[str, Any]]:
 
 def get_strength_context_for_game(child_id: str, strength_name: str) -> dict[str, Any]:
     normalized = normalize_strength_name(strength_name)
+    from services.student_profile_service import get_random_strength_case
+
+    profile_case = get_random_strength_case(child_id, normalized)
+    if profile_case:
+        return {
+            "strength_name": normalized,
+            "has_strength": True,
+            "message": (
+                f"你吃到了「{normalized}」果實！"
+                f"過去紀錄裡有一個例子：{profile_case['description']} "
+                f"這就是「{normalized}」的表現。"
+            ),
+            "case": profile_case,
+        }
+
     row = fetch_one(
         """
         SELECT

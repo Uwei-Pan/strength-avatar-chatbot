@@ -30,4 +30,4 @@ def render() -> None:
         st.rerun()
 
     st.divider()
-    st.write("試用帳號：`studentB`、`studentC`、`studentD`，密碼都是 `1234`。")
+    st.write("帳號為你的名字：試用版為`student字母`，密碼都是 `1234`。")

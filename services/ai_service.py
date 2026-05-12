@@ -7,6 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from services.strength_service import detect_strengths_rule_based, normalize_strength_name
+from services.student_profile_service import get_ai_case_context, get_random_strength_case
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -67,12 +68,12 @@ def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[s
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key or api_key == "your_gemini_api_key_here":
-        return _mock_analyze(cleaned, "沒有偵測到 GEMINI_API_KEY，使用 mock mode。")
+        return _mock_analyze(cleaned, "沒有偵測到 GEMINI_API_KEY，使用 mock mode。", child_profile)
 
     try:
         return _analyze_with_gemini(child_profile, cleaned, api_key)
     except Exception as exc:
-        return _mock_analyze(cleaned, _format_gemini_error(exc))
+        return _mock_analyze(cleaned, _format_gemini_error(exc), child_profile)
 
 
 def _analyze_with_gemini(
@@ -91,12 +92,16 @@ def _analyze_with_gemini(
         for item in child_profile.get("owned_strengths", [])
         if item.get("name_zh")
     ]
+    case_context = get_ai_case_context(child_profile.get("child_id", ""))
     prompt = f"""
 你是兒少優勢探索 AI。請用繁體中文回覆，語氣溫暖、簡短、具體、不說教、不誇大。
 
 孩子資料：
 - 名字：{child_profile.get("name", "孩子")}
 - 已知優勢：{", ".join(sorted(set(strengths))) if strengths else "尚未提供"}
+
+可引用的過去匿名案例：
+{case_context}
 
 孩子訊息：
 {message}
@@ -126,6 +131,8 @@ def _analyze_with_gemini(
 - 如果只是「今天很累」「不知道」「還好」這類低訊息內容，不要新增優勢。
 - 如果孩子低落、自責或挫折，先承接情緒，不急著貼標籤。
 - detected_strengths 最多 2 個。
+- 如果要提到過去案例，只能使用「可引用的過去匿名案例」中明確存在的內容。
+- 如果案例清單沒有相關內容，不可以編造過去事件，只能用一般鼓勵語氣。
 """
     response = client.models.generate_content(
         model=model,
@@ -152,7 +159,11 @@ def _parse_json(raw_text: str) -> dict[str, Any]:
         return json.loads(match.group(0))
 
 
-def _mock_analyze(message: str, error: str = "") -> dict[str, Any]:
+def _mock_analyze(
+    message: str,
+    error: str = "",
+    child_profile: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     detected = detect_strengths_rule_based(message)
     emotion = _guess_emotion(message)
     if emotion in {"挫折", "低落", "疲累"}:
@@ -167,6 +178,10 @@ def _mock_analyze(message: str, error: str = "") -> dict[str, Any]:
             f"謝謝你跟我分享。你剛剛說的事情裡，"
             f"我看到一點「{detected[0]['strength_name']}」。"
         )
+        child_id = (child_profile or {}).get("child_id", "")
+        profile_case = get_random_strength_case(child_id, detected[0]["strength_name"])
+        if profile_case:
+            reply += f" 我也想到你過去有一個例子：{profile_case['description']}"
     else:
         reply = "謝謝你願意告訴我。聽起來這件事對你有一點感覺，我想多了解一些。"
 
