@@ -19,7 +19,15 @@ def render() -> None:
         st.error("請先登入。")
         return
 
-    st.title("服裝商店")
+    st.markdown(
+        """
+        <div class="kid-hero">
+            <p class="kid-hero-title">服裝商店</p>
+            <p class="kid-hero-copy">用努力收集到的代幣，替角色解鎖新的冒險造型。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption(f"目前代幣：{child['tokens']}")
 
     owned = [item for item in outfits if item["is_owned"]]

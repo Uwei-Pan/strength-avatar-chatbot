@@ -94,7 +94,8 @@ def _analyze_with_gemini(
     ]
     case_context = get_ai_case_context(child_profile.get("child_id", ""))
     prompt = f"""
-你是兒少優勢探索 AI。請用繁體中文回覆，語氣溫暖、簡短、具體、不說教、不誇大。
+你是一位溫暖、支持、鼓勵孩子的兒少優勢探索 AI 夥伴。請用繁體中文回覆。
+你的任務不是批評、命令或診斷孩子，而是陪孩子一起理解感受、看見自己的優勢，並給出簡單可行的小建議。
 
 孩子資料：
 - 名字：{child_profile.get("name", "孩子")}
@@ -127,12 +128,17 @@ def _analyze_with_gemini(
 }}
 
 規則：
+- reply_to_child 要像可靠的大哥哥大姐姐，溫暖、鼓勵、有陪伴感，不要像老師訓話。
+- 回覆結構建議：先接住孩子的情緒；再肯定孩子願意說出來或已經做到的努力；若有明確根據，再自然提到優勢；最後給一個小小可行的下一步。
+- reply_to_child 控制在 3 到 6 句，句子短一點，適合兒童閱讀。
+- 不責備、不說教、不過度診斷，也不要要求孩子立刻變好。
 - 不要每次都硬判斷優勢。
 - 如果只是「今天很累」「不知道」「還好」這類低訊息內容，不要新增優勢。
 - 如果孩子低落、自責或挫折，先承接情緒，不急著貼標籤。
 - detected_strengths 最多 2 個。
 - 如果要提到過去案例，只能使用「可引用的過去匿名案例」中明確存在的內容。
 - 如果案例清單沒有相關內容，不可以編造過去事件，只能用一般鼓勵語氣。
+- 如果孩子提到危險、自傷、想傷害自己、被傷害、被威脅或嚴重情緒困擾，要先溫柔接住，並明確建議孩子立刻找可信任的大人、老師、輔導老師或家人協助；不要只用一般鼓勵帶過。
 """
     response = client.models.generate_content(
         model=model,
@@ -164,26 +170,52 @@ def _mock_analyze(
     error: str = "",
     child_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if _has_safety_concern(message):
+        return _normalize_result(
+            {
+                "reply_to_child": (
+                    "謝謝你把這麼重要的事情說出來，這真的需要被好好照顧。"
+                    "你不用一個人撐著，請現在就去找一位可信任的大人、老師、輔導老師或家人陪你。"
+                    "如果你正有危險，請立刻離開危險的地方，並請身邊的大人幫你聯絡緊急協助。"
+                ),
+                "emotion": "需要協助",
+                "detected_strengths": [],
+                "should_award_tokens": True,
+                "tokens_earned": 10,
+                "follow_up_question": "你身邊現在有哪一位大人可以馬上陪你嗎？",
+                "mode": "mock",
+                "error": error,
+            },
+            message,
+        )
+
     detected = detect_strengths_rule_based(message)
     emotion = _guess_emotion(message)
     if emotion in {"挫折", "低落", "疲累"}:
         reply = (
             "聽起來你今天真的不太容易。謝謝你願意說出來，"
-            "這件事可以慢慢整理，不用一下子就變好。"
+            "這本身就是很勇敢的一小步。你不用一下子就變好，"
+            "我們可以先把最卡住的地方慢慢說清楚。"
         )
         if detected:
             reply += f" 我也看到你有一點「{detected[0]['strength_name']}」的影子。"
+        reply += " 下一步可以先深呼吸三次，再挑一件最想被理解的事情告訴我。"
     elif detected:
         reply = (
-            f"謝謝你跟我分享。你剛剛說的事情裡，"
-            f"我看到一點「{detected[0]['strength_name']}」。"
+            f"謝謝你跟我分享，這聽起來是很值得記下來的一刻。"
+            f"你剛剛說的事情裡，我看到一點「{detected[0]['strength_name']}」。"
         )
         child_id = (child_profile or {}).get("child_id", "")
         profile_case = get_random_strength_case(child_id, detected[0]["strength_name"])
         if profile_case:
-            reply += f" 我也想到你過去有一個例子：{profile_case['description']}"
+            reply += f" 我也想到你過去有一個例子：{profile_case['description']}。"
+        reply += " 可以把這件事當成今天的一顆優勢果實，等一下再想想你是怎麼做到的。"
     else:
-        reply = "謝謝你願意告訴我。聽起來這件事對你有一點感覺，我想多了解一些。"
+        reply = (
+            "謝謝你願意告訴我。聽起來這件事在你心裡有一點重量，"
+            "你願意把它說出來已經很不容易。"
+            "我們可以先不急著判斷對錯，只一起看看到底發生了什麼。"
+        )
 
     follow_up = "你願意再說一點，當時你心裡最明顯的感覺是什麼嗎？"
     return _normalize_result(
@@ -218,6 +250,22 @@ def _guess_emotion(message: str) -> str:
     if any(word in message for word in ["開心", "高興", "興奮"]):
         return "開心"
     return "平穩"
+
+
+def _has_safety_concern(message: str) -> bool:
+    concern_words = [
+        "自殺",
+        "不想活",
+        "傷害自己",
+        "割腕",
+        "想死",
+        "被打",
+        "被傷害",
+        "被威脅",
+        "家暴",
+        "霸凌到受不了",
+    ]
+    return any(word in message for word in concern_words)
 
 
 def _normalize_result(result: dict[str, Any], message: str) -> dict[str, Any]:

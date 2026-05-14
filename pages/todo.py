@@ -19,7 +19,15 @@ def render() -> None:
         st.error("請先登入。")
         return
 
-    st.title("任務小清單")
+    st.markdown(
+        """
+        <div class="kid-hero">
+            <p class="kid-hero-title">任務小清單</p>
+            <p class="kid-hero-copy">把大事情拆成小任務，完成一格就是一次很棒的前進。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption(f"目前代幣：{child['tokens']}")
 
     with st.form("todo_form", clear_on_submit=True):
@@ -47,7 +55,7 @@ def render() -> None:
                 st.success("任務已新增。")
                 st.rerun()
 
-    st.subheader("任務清單")
+    st.markdown('<p class="kid-section-title">任務清單</p>', unsafe_allow_html=True)
     try:
         todos = list_todos(child_id)
     except DatabaseConnectionError as exc:

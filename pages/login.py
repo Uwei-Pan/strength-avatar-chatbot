@@ -5,13 +5,20 @@ from services.child_service import authenticate_child
 
 
 def render() -> None:
-    st.title("優勢探索小幫手")
-    st.caption("請用試用帳號登入")
+    st.markdown(
+        """
+        <div class="kid-hero">
+            <p class="kid-hero-title">優勢探索小幫手</p>
+            <p class="kid-hero-copy">登入你的優勢基地，和 AI 夥伴一起記下今天的小發現。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     with st.form("login_form"):
         username = st.text_input("帳號", value="studentB")
         password = st.text_input("密碼", type="password", value="1234")
-        submitted = st.form_submit_button("登入")
+        submitted = st.form_submit_button("進入我的基地", use_container_width=True)
 
     if submitted:
         try:
@@ -29,5 +36,16 @@ def render() -> None:
         st.session_state["page"] = "dashboard"
         st.rerun()
 
-    st.divider()
-    st.write("帳號為你的名字：試用版為`student字母`，密碼都是 `1234`。")
+    st.markdown(
+        """
+        <div class="kid-card">
+            帳號是學生姓名，試用版可以輸入
+            <span class="kid-tag chip-c">studentB</span>
+            <span class="kid-tag chip-d">studentC</span>
+            <span class="kid-tag chip-e">studentD</span>
+            這類格式；例如 <span class="kid-tag chip-c">studentB</span>。密碼都是
+            <span class="kid-tag chip-a">1234</span>。
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

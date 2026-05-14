@@ -19,7 +19,15 @@ def render() -> None:
         st.error("請先登入。")
         return
 
-    st.title("日記")
+    st.markdown(
+        """
+        <div class="kid-hero">
+            <p class="kid-hero-title">心情日記</p>
+            <p class="kid-hero-copy">記下今天的感覺和努力，AI 夥伴會陪你一起看見優勢。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption(f"目前代幣：{child['tokens']}")
 
     with st.form("diary_form", clear_on_submit=True):
@@ -46,7 +54,7 @@ def render() -> None:
                     st.write("這篇日記可能看到：")
                     _render_strength_chips(result["detected_strengths"])
 
-    st.subheader("最近的日記")
+    st.markdown('<p class="kid-section-title">最近的日記</p>', unsafe_allow_html=True)
     try:
         entries = list_diary_entries(child_id)
     except DatabaseConnectionError as exc:

@@ -1,3 +1,5 @@
+from html import escape
+
 import streamlit as st
 
 from database.db_connection import DatabaseConnectionError
@@ -26,11 +28,19 @@ def render() -> None:
         st.error("請先登入。")
         return
 
-    st.title("角色與服裝")
+    st.markdown(
+        """
+        <div class="kid-hero">
+            <p class="kid-hero-title">角色與服裝</p>
+            <p class="kid-hero-copy">幫你的優勢角色換上喜歡的樣子，讓每一次練習都更有自己的風格。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.metric("目前角色", CHARACTER_LABELS.get(child["selected_character"], child["selected_character"]))
     st.metric("目前服裝", _selected_outfit_name(child))
 
-    st.subheader("選擇角色")
+    st.markdown('<p class="kid-section-title">選擇角色</p>', unsafe_allow_html=True)
     character_cols = st.columns(len(CHARACTER_OPTIONS))
     for index, character_key in enumerate(CHARACTER_OPTIONS):
         with character_cols[index]:
@@ -74,10 +84,17 @@ def render() -> None:
         st.success("服裝已更新。")
         st.rerun()
 
-    st.subheader("已解鎖")
+    st.markdown('<p class="kid-section-title">已解鎖</p>', unsafe_allow_html=True)
     for outfit in outfits:
-        st.write(f"**{outfit['display_name']}**")
-        st.caption(f"解鎖方式：{_source_label(outfit['unlocked_source'])}")
+        st.markdown(
+            f"""
+            <div class="kid-card">
+                <strong>{escape(str(outfit["display_name"]))}</strong><br>
+                <span class="kid-tag chip-b">解鎖方式：{escape(_source_label(outfit["unlocked_source"]))}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def _source_label(source: str) -> str:

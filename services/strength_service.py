@@ -224,3 +224,17 @@ def save_chat_log(
             tokens_earned,
         ),
     )
+
+
+def list_chat_logs(child_id: str, limit: int = 8) -> list[dict[str, Any]]:
+    return fetch_all(
+        """
+        SELECT id, user_message, ai_reply, emotion,
+               detected_strengths_json, tokens_earned, created_at
+        FROM chat_logs
+        WHERE child_id = %s
+        ORDER BY created_at DESC, id DESC
+        LIMIT %s
+        """,
+        (child_id, int(limit)),
+    )

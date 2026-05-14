@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 .DS_Store
 .streamlit/secrets.toml
+
+# Local agent skills installed for this workspace.
+.agents/skills/*
+!.agents/skills/find-skills/
+!.agents/skills/find-skills/SKILL.md
+skills-lock.json

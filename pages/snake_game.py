@@ -20,7 +20,15 @@ def render() -> None:
         st.error("請先登入。")
         return
 
-    st.title("優勢果實貪吃蛇")
+    st.markdown(
+        """
+        <div class="kid-hero">
+            <p class="kid-hero-title">優勢果實遊戲</p>
+            <p class="kid-hero-copy">吃到果實時，看看它和你的哪一種優勢力量有關。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption("開始遊戲需要 5 代幣，分數達 30 可獲得 10 代幣。")
     st.metric("目前代幣", child["tokens"])
 
