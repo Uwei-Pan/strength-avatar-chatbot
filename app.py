@@ -51,7 +51,16 @@ def main() -> None:
             st.rerun()
         st.divider()
         if st.button("登出", use_container_width=True):
-            for key in ["child_id", "page", "snake_state", "snake_started", "snake_saved"]:
+            for key in [
+                "child_id",
+                "page",
+                "snake_state",
+                "snake_started",
+                "snake_saved",
+                "active_chat_session",
+                "chat_confirm_close",
+                "chat_notice",
+            ]:
                 st.session_state.pop(key, None)
             st.rerun()
 

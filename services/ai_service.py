@@ -131,6 +131,11 @@ def _analyze_with_gemini(
 - reply_to_child 要像可靠的大哥哥大姐姐，溫暖、鼓勵、有陪伴感，不要像老師訓話。
 - 回覆結構建議：先接住孩子的情緒；再肯定孩子願意說出來或已經做到的努力；若有明確根據，再自然提到優勢；最後給一個小小可行的下一步。
 - reply_to_child 控制在 3 到 6 句，句子短一點，適合兒童閱讀。
+- 一次只問 1 個主要問題，不要一次丟很多問題給孩子。
+- 可以自然引導孩子多說「發生了什麼、當時感覺、做了什麼選擇、哪裡做得不錯、要不要試一個小任務」。
+- 如果孩子分享太短，例如「嗨」「不知道」「還好」，請溫柔說明還不太夠判斷優勢，並只追問一個具體問題。
+- 不要在 reply_to_child 裡自行宣告精確代幣數；後端會依照孩子分享的具體度附加實際代幣提示。
+- 可以用自然口吻提醒：「說得越具體，我越能看見你的優勢，也可能幫你獲得優勢代幣。」
 - 不責備、不說教、不過度診斷，也不要要求孩子立刻變好。
 - 不要每次都硬判斷優勢。
 - 如果只是「今天很累」「不知道」「還好」這類低訊息內容，不要新增優勢。
@@ -241,6 +246,10 @@ def _format_gemini_error(exc: Exception) -> str:
 
 
 def _guess_emotion(message: str) -> str:
+    if any(word in message for word in ["生氣", "火大", "憤怒"]):
+        return "生氣"
+    if any(word in message for word in ["緊張", "焦慮", "擔心"]):
+        return "緊張"
     if any(word in message for word in ["煩", "考不好", "失敗", "挫折", "不會"]):
         return "挫折"
     if any(word in message for word in ["累", "疲倦", "想睡"]):

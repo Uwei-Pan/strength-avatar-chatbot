@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .DS_Store
 .streamlit/secrets.toml
+data/chat_sessions/*.json
 
 # Local agent skills installed for this workspace.
 .agents/skills/*

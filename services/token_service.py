@@ -64,8 +64,8 @@ def _change_tokens(child_id: str, amount: int, reason: str) -> int:
             raise
 
 
-def award_chat_tokens(child_id: str) -> int:
-    return add_tokens(child_id, CHAT_REWARD, "chat_reward")
+def award_chat_tokens(child_id: str, amount: int = CHAT_REWARD) -> int:
+    return add_tokens(child_id, amount, "chat_reflection_reward")
 
 
 def spend_game_start_tokens(child_id: str) -> int:
