@@ -16,7 +16,7 @@ PAGES = {
 PAGE_LABELS = {
     "dashboard": "我的首頁",
     "chat": "和小幫手聊聊",
-    "snake_game": "優勢果實遊戲",
+    "snake_game": "遊戲樂園",
     "character": "角色與服裝",
     "diary": "心情日記",
     "todo": "任務小清單",
@@ -57,6 +57,10 @@ def main() -> None:
                 "snake_state",
                 "snake_started",
                 "snake_saved",
+                "snake_game",
+                "block_puzzle_game",
+                "current_game_type",
+                "pending_reflection_question",
                 "active_chat_session",
                 "chat_confirm_close",
                 "chat_notice",
@@ -133,6 +137,21 @@ def _inject_style() -> None:
         [data-testid="stSidebar"] [role="radio"][aria-checked="true"] p {
             color: #0c63b8 !important;
             font-weight: 900;
+        }
+
+        [data-testid="stRadio"] label,
+        [data-testid="stRadio"] label *,
+        [data-testid="stRadio"] [role="radiogroup"] label,
+        [data-testid="stRadio"] [role="radiogroup"] label * {
+            color: #25306f !important;
+            font-weight: 900 !important;
+            opacity: 1 !important;
+        }
+
+        [data-testid="stRadio"] label:has(input:disabled),
+        [data-testid="stRadio"] label:has(input:disabled) * {
+            color: #25306f !important;
+            opacity: 1 !important;
         }
 
         [data-testid="stAppViewContainer"] .main .block-container {
@@ -407,6 +426,52 @@ def _inject_style() -> None:
             border: 5px solid rgba(255, 255, 255, 0.88);
         }
 
+        .block-piece-row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.8rem;
+            margin: 0.75rem 0 1rem;
+        }
+
+        .block-piece-card {
+            min-height: 118px;
+            padding: 0.8rem;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.82);
+            border: 2px solid rgba(72, 168, 245, 0.2);
+            box-shadow: var(--kid-soft-shadow);
+        }
+
+        .block-piece-card.active {
+            border-color: #ff9f43;
+            background: linear-gradient(135deg, #fff7d6 0%, #e7f5ff 100%);
+        }
+
+        .block-piece-grid {
+            display: inline-grid;
+            gap: 4px;
+            margin-top: 0.55rem;
+        }
+
+        .block-piece-grid-row {
+            display: flex;
+            gap: 4px;
+            min-height: 22px;
+        }
+
+        .block-piece-grid span {
+            width: 22px;
+            height: 22px;
+            border-radius: 7px;
+            border: 1px solid rgba(47, 58, 95, 0.12);
+            box-shadow: inset 0 -3px 0 rgba(47, 58, 95, 0.12);
+        }
+
+        .block-piece-grid span.ghost {
+            border-color: transparent;
+            box-shadow: none;
+        }
+
         @media (max-width: 640px) {
             [data-testid="stAppViewContainer"] .main .block-container {
                 padding-left: 1rem;
@@ -420,6 +485,10 @@ def _inject_style() -> None:
 
             .chat-bubble {
                 max-width: 100%;
+            }
+
+            .block-piece-row {
+                grid-template-columns: 1fr;
             }
         }
         </style>
