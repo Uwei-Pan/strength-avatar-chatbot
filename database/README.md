@@ -60,6 +60,7 @@ python database/init_db.py
 - `chat_logs`
 - `token_transactions`
 - `game_sessions`
+- `game_reflections`
 - `outfits`
 - `child_outfits`
 - `todo_items`

@@ -80,6 +80,21 @@ CREATE TABLE IF NOT EXISTS game_sessions (
     INDEX idx_game_sessions_child_created (child_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS game_reflections (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    child_id VARCHAR(64) NOT NULL,
+    game_type VARCHAR(40) NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    score_before_game_over INT NOT NULL DEFAULT 0,
+    game_over_reason VARCHAR(80) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_game_reflections_child
+        FOREIGN KEY (child_id) REFERENCES children(child_id)
+        ON DELETE CASCADE,
+    INDEX idx_game_reflections_child_created (child_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS outfits (
     outfit_id VARCHAR(100) PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,

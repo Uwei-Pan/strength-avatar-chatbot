@@ -27,6 +27,14 @@ DEFAULT_RESULT = {
     "error": "",
 }
 
+REFLECTION_VALIDATION_FALLBACK = {
+    "is_valid": False,
+    "reason": "回答需要更具體一點。",
+    "gentle_prompt": "請寫至少 20 個字，說說發生了什麼、你的感覺，或你想怎麼再試一次。",
+    "mode": "mock",
+    "error": "",
+}
+
 ALLOWED_STRENGTH_NAMES = {
     "創造力",
     "好奇心",
@@ -74,6 +82,139 @@ def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[s
         return _analyze_with_gemini(child_profile, cleaned, api_key)
     except Exception as exc:
         return _mock_analyze(cleaned, _format_gemini_error(exc), child_profile)
+
+
+def validate_reflection_answer(
+    child_profile: dict[str, Any],
+    question: str,
+    answer: str,
+) -> dict[str, Any]:
+    load_dotenv(dotenv_path=ENV_PATH, override=True)
+    cleaned = answer.strip()
+    local_result = _rule_validate_reflection(cleaned)
+    if not local_result["is_valid"]:
+        return local_result
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key or api_key == "your_gemini_api_key_here":
+        return {
+            **local_result,
+            "mode": "mock",
+            "error": "沒有偵測到 GEMINI_API_KEY，使用本機規則判斷。",
+        }
+
+    try:
+        return _validate_reflection_with_gemini(child_profile, question, cleaned, api_key)
+    except Exception as exc:
+        return {
+            **local_result,
+            "mode": "mock",
+            "error": _format_gemini_error(exc),
+        }
+
+
+def _validate_reflection_with_gemini(
+    child_profile: dict[str, Any],
+    question: str,
+    answer: str,
+    api_key: str,
+) -> dict[str, Any]:
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        return _rule_validate_reflection(answer)
+
+    client = genai.Client(api_key=api_key)
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    prompt = f"""
+你正在協助兒童遊戲中的反思復活機制。請判斷孩子的回答是否「足夠具體且真誠」，可以讓他復活一次。
+
+孩子名字：{child_profile.get("name", "孩子")}
+問題：{question}
+回答：{answer}
+
+請只回傳 JSON：
+{{
+  "is_valid": true,
+  "reason": "簡短原因",
+  "gentle_prompt": "如果不合格，給孩子一句溫柔提醒；若合格，留空字串"
+}}
+
+判斷規則：
+- 必須至少 20 個中文字/字元左右。
+- 合格回答要有具體內容，例如事件、感受、行動、想法、想再試一次的方法、或提到某個優勢。
+- 如果只是重複字、亂打、只有「不知道」「還好」「可以」「我要復活」、無意義符號、或明顯敷衍，請判斷不合格。
+- 不要責備孩子；提醒要短、溫柔、明確。
+"""
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            responseMimeType="application/json",
+            temperature=0.1,
+        ),
+    )
+    raw_text = getattr(response, "text", "") or ""
+    parsed = _parse_json(raw_text)
+    is_valid = bool(parsed.get("is_valid"))
+    return {
+        "is_valid": is_valid,
+        "reason": str(parsed.get("reason") or ""),
+        "gentle_prompt": str(parsed.get("gentle_prompt") or ""),
+        "mode": "gemini",
+        "error": "",
+    }
+
+
+def _rule_validate_reflection(answer: str) -> dict[str, Any]:
+    cleaned = answer.strip()
+    if len(cleaned) < 20:
+        return {
+            **REFLECTION_VALIDATION_FALLBACK,
+            "reason": "回答少於 20 個字。",
+            "gentle_prompt": "請再多寫一點，至少 20 個字，說說你的感覺或下一次想怎麼做。",
+        }
+
+    compact = re.sub(r"\s+", "", cleaned)
+    unique_chars = set(compact)
+    low_signal = ["不知道", "隨便", "還好", "沒有", "沒事", "可以了", "我要復活"]
+    if any(phrase == compact or compact.count(phrase) >= 2 for phrase in low_signal):
+        return {
+            **REFLECTION_VALIDATION_FALLBACK,
+            "reason": "回答太像敷衍或低訊息內容。",
+            "gentle_prompt": "請換成一個比較真實的回答，例如說一件事、你的感覺，或下一次想怎麼做。",
+        }
+    if len(unique_chars) <= 5 or _has_long_repeated_run(compact):
+        return {
+            **REFLECTION_VALIDATION_FALLBACK,
+            "reason": "回答看起來像重複字或亂打。",
+            "gentle_prompt": "我想聽你真正的想法，請用一句完整的話說說看。",
+        }
+
+    return {
+        "is_valid": True,
+        "reason": "回答長度與內容通過本機規則。",
+        "gentle_prompt": "",
+        "mode": "mock",
+        "error": "",
+    }
+
+
+def _has_long_repeated_run(text: str) -> bool:
+    if not text:
+        return False
+    run = 1
+    previous = text[0]
+    for char in text[1:]:
+        if char == previous:
+            run += 1
+            if run >= 6:
+                return True
+        else:
+            previous = char
+            run = 1
+    return False
 
 
 def _analyze_with_gemini(
