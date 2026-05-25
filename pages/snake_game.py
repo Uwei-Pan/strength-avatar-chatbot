@@ -3,6 +3,7 @@ from html import escape
 from typing import Any
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from database.db_connection import DatabaseConnectionError
 from games.block_component import neon_block_puzzle_game
@@ -62,7 +63,7 @@ def render() -> None:
     if not child:
         st.error("請先登入。")
         return
-
+    
     st.markdown(
         """
         <div class="kid-hero">
