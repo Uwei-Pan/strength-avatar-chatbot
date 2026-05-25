@@ -244,6 +244,12 @@ CSS = """
   padding: 12px;
 }
 
+.block-piece.used {
+  opacity: 0.18;
+  cursor: default;
+  pointer-events: none;
+}
+
 .block-piece.active {
   outline: 3px solid #d931ff;
   box-shadow: 0 0 18px rgba(217, 49, 255, 0.42);
@@ -317,6 +323,7 @@ function createState(gameId, data) {
   return {
     gameId,
     board: Array.from({ length: size }, () => Array.from({ length: size }, () => null)),
+    // null = 已用完，等補充；非 null = 可用
     pieces: [newPiece(), newPiece(), newPiece()],
     selected: 0,
     score: 0,
@@ -354,26 +361,43 @@ function render(root, state, setTriggerValue) {
   state.pieces.forEach((piece, index) => {
     const button = document.createElement("button")
     button.type = "button"
-    button.className = `block-piece${index === state.selected ? " active" : ""}`
-    button.setAttribute("aria-label", `選擇 ${piece.name}`)
-    button.onclick = () => {
-      state.selected = index
-      state.notice = `已選擇：${piece.name}`
-      render(root, state, setTriggerValue)
+
+    if (piece === null) {
+      // 已用完：灰掉、不可點
+      button.className = "block-piece used"
+      button.setAttribute("aria-label", "已使用")
+    } else {
+      const isSelected = index === state.selected
+      button.className = `block-piece${isSelected ? " active" : ""}`
+      button.setAttribute("aria-label", `選擇 ${piece.name}`)
+      button.onclick = () => {
+        state.selected = index
+        state.notice = `已選擇：${piece.name}`
+        render(root, state, setTriggerValue)
+      }
+      button.appendChild(pieceGrid(piece))
     }
-    button.appendChild(pieceGrid(piece))
     pieces.appendChild(button)
   })
 }
 
 function place(state, row, col, setTriggerValue, root) {
   if (state.gameOver) return
+
   const piece = state.pieces[state.selected]
+  // 選到的格子已用完
+  if (piece === null) {
+    state.notice = "這個方塊已經用掉了，請選另一個。"
+    render(root, state, setTriggerValue)
+    return
+  }
   if (!canPlace(state.board, piece, row, col)) {
     state.notice = "這個位置放不下喔，換個地方試試看。"
     render(root, state, setTriggerValue)
     return
   }
+
+  // 放置
   piece.cells.forEach(([r, c]) => {
     state.board[row + r][col + c] = { color: piece.color, shape: piece.shape }
   })
@@ -391,10 +415,29 @@ function place(state, row, col, setTriggerValue, root) {
     score_after: state.score,
     cleared_lines: cleared,
   })
-  state.notice = cleared ? `消除 ${cleared} 條線！` : `放好了，+${placedScore} 分。`
-  state.pieces[state.selected] = newPiece()
+
+  // 標記為已用
+  state.pieces[state.selected] = null
+
+  // 三個都用完才補充新的三個
+  if (state.pieces.every(p => p === null)) {
+    state.pieces = [newPiece(), newPiece(), newPiece()]
+    state.selected = 0
+    state.notice = cleared
+      ? `消除 ${cleared} 條線！三個方塊用完，補充新的三個。`
+      : `三個方塊都用完了，補充新的三個！`
+  } else {
+    // 自動選下一個可用的方塊
+    const next = state.pieces.findIndex(p => p !== null)
+    if (next !== -1) state.selected = next
+    state.notice = cleared ? `消除 ${cleared} 條線！` : `放好了，+${placedScore} 分。`
+  }
+
   maybeAwardToken(state, setTriggerValue)
-  if (!hasMove(state.board, state.pieces)) {
+
+  // 用剩餘可用方塊判斷 game over
+  const remaining = state.pieces.filter(p => p !== null)
+  if (!hasMove(state.board, remaining)) {
     state.gameOver = true
     state.notice = "目前沒有地方可以放囉！"
     setTriggerValue("game_over", {
@@ -406,6 +449,7 @@ function place(state, row, col, setTriggerValue, root) {
       placements: state.placements,
     })
   }
+
   render(root, state, setTriggerValue)
 }
 
@@ -444,6 +488,7 @@ function canPlace(board, piece, row, col) {
 
 function hasMove(board, pieces) {
   return pieces.some((piece) => {
+    if (!piece) return false
     for (let row = 0; row < size; row += 1) {
       for (let col = 0; col < size; col += 1) {
         if (canPlace(board, piece, row, col)) return true

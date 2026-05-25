@@ -36,7 +36,8 @@ def new_game() -> dict[str, Any]:
     return {
         "game_id": new_game_id(),
         "board": [[None for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)],
-        "pieces": [_new_piece() for _ in range(3)],
+        # None = 已用完等補充；dict = 可用方塊
+        "pieces": [_new_piece(), _new_piece(), _new_piece()],
         "selected_piece": 0,
         "score": 0,
         "high_score": 0,
@@ -52,7 +53,8 @@ def new_game() -> dict[str, Any]:
 
 def select_piece(state: dict[str, Any], piece_index: int) -> dict[str, Any]:
     if 0 <= piece_index < len(state["pieces"]):
-        state["selected_piece"] = piece_index
+        if state["pieces"][piece_index] is not None:
+            state["selected_piece"] = piece_index
     return state
 
 
@@ -62,6 +64,11 @@ def place_selected_piece(state: dict[str, Any], row: int, col: int) -> dict[str,
 
     piece_index = int(state.get("selected_piece", 0))
     piece = state["pieces"][piece_index]
+
+    if piece is None:
+        state["notice"] = "這個方塊已經用掉了，請選另一個。"
+        return state
+
     if not can_place(state["board"], piece, row, col):
         state["notice"] = "這個位置放不下喔，換個地方試試看。"
         return state
@@ -80,8 +87,6 @@ def place_selected_piece(state: dict[str, Any], row: int, col: int) -> dict[str,
     state["board"] = clear_result["board"]
     state["score"] += earned
     state["high_score"] = max(int(state.get("high_score", 0)), int(state["score"]))
-    state["pieces"][piece_index] = _new_piece()
-    state["notice"] = _score_notice(placed_cells, cleared_lines, combo_bonus)
     state["last_cleared"] = clear_result["cleared_positions"]
     state["placements"].append(
         {
@@ -94,10 +99,33 @@ def place_selected_piece(state: dict[str, Any], row: int, col: int) -> dict[str,
         }
     )
 
-    if not has_any_valid_move(state["board"], state["pieces"]):
+    # 標記為已用
+    state["pieces"][piece_index] = None
+
+    # 三個都用完才補充新的三個
+    if all(p is None for p in state["pieces"]):
+        state["pieces"] = [_new_piece(), _new_piece(), _new_piece()]
+        state["selected_piece"] = 0
+        state["notice"] = (
+            f"消除 {cleared_lines} 條線！三個方塊用完，補充新的三個。"
+            if cleared_lines
+            else "三個方塊都用完了，補充新的三個！"
+        )
+    else:
+        # 自動選下一個可用的方塊
+        next_index = next(
+            (i for i, p in enumerate(state["pieces"]) if p is not None), 0
+        )
+        state["selected_piece"] = next_index
+        state["notice"] = _score_notice(placed_cells, cleared_lines, combo_bonus)
+
+    # 用剩餘可用方塊判斷 game over
+    remaining = [p for p in state["pieces"] if p is not None]
+    if not has_any_valid_move(state["board"], remaining):
         state["game_over"] = True
         state["game_over_reason"] = "no_valid_moves"
         state["notice"] = "目前沒有地方可以放囉！先回答一個小問題，再挑戰一次。"
+
     return state
 
 
@@ -116,6 +144,8 @@ def can_place(board: list[list[str | None]], piece: dict[str, Any], row: int, co
 
 def has_any_valid_move(board: list[list[str | None]], pieces: list[dict[str, Any]]) -> bool:
     for piece in pieces:
+        if piece is None:
+            continue
         for row in range(BOARD_SIZE):
             for col in range(BOARD_SIZE):
                 if can_place(board, piece, row, col):
