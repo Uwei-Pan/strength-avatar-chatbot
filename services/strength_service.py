@@ -1,4 +1,6 @@
 import json
+import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -6,23 +8,64 @@ from database.db_connection import execute, fetch_all, fetch_one, get_connection
 
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "strengths_24.json"
+DEFINITIONS_PATH = Path(__file__).resolve().parents[1] / "data" / "strength_definitions.json"
 
-RULES = [
-    ("仁慈", ["幫", "照顧", "分享", "安慰"]),
-    ("勤奮", ["完成", "努力", "練習", "堅持"]),
-    ("好奇心", ["嘗試", "新", "發現", "為什麼"]),
-    ("勇敢", ["害怕但", "勇敢", "挑戰"]),
-    ("感激", ["謝謝", "感謝"]),
-    ("團體合作", ["一起", "合作", "隊友", "幫忙完成"]),
-    ("自我規範", ["冷靜", "忍住", "控制", "自我控制"]),
+LOW_SIGNAL_PHRASES = [
+    "今天很累",
+    "不知道",
+    "還好",
+    "沒事",
+    "普通",
+    "很累",
+    "想知道我的優勢",
+    "可以給我建議嗎",
+    "可以鼓勵我一下嗎",
+    "請給我一個小任務",
 ]
-
-LOW_SIGNAL_PHRASES = ["今天很累", "不知道", "還好", "沒事", "普通", "很累"]
+CONFIDENCE_VALUES = {
+    "high": 0.86,
+    "medium": 0.68,
+    "low": 0.45,
+}
 
 
 def load_strengths_from_json() -> list[dict[str, Any]]:
     data = json.loads(DATA_PATH.read_text(encoding="utf-8"))
     return data["strengths"]
+
+
+@lru_cache(maxsize=1)
+def load_strength_definitions() -> dict[str, Any]:
+    return json.loads(DEFINITIONS_PATH.read_text(encoding="utf-8"))
+
+
+def get_strength_definition_by_name(strength_name: str) -> dict[str, Any] | None:
+    normalized = normalize_strength_name(strength_name)
+    for item in load_strength_definitions().get("strengths", []):
+        if item.get("name_zh") == normalized:
+            return item
+    return None
+
+
+def get_via_interpretation_principles() -> list[str]:
+    data = load_strength_definitions()
+    return list(data.get("interpretation_principles", []))
+
+
+def build_via_prompt_context() -> str:
+    data = load_strength_definitions()
+    lines = [
+        "VIA 24 項品格優勢 rubric（不是問卷，不要求學生填答）：",
+    ]
+    for item in data.get("strengths", []):
+        indicators = "；".join(item.get("behavior_indicators", [])[:2])
+        cues = "；".join(item.get("semantic_cues", [])[:2])
+        lines.append(
+            f"- {item['name_zh']} ({item['name_en']}｜{item['virtue']})："
+            f"{item['core_definition']} 行為指標：{indicators}。語意線索：{cues}。"
+            f"注意：{item.get('not_overinterpret', '')}"
+        )
+    return "\n".join(lines)
 
 
 def get_all_strengths() -> list[dict[str, Any]]:
@@ -50,23 +93,78 @@ def normalize_strength_name(strength_name: str) -> str:
     return aliases.get(strength_name.strip(), strength_name.strip())
 
 
-def detect_strengths_rule_based(message: str) -> list[dict[str, Any]]:
+def detect_strengths_rule_based(message: str, source: str = "platform_interaction") -> list[dict[str, Any]]:
     text = message.strip()
-    if len(text) <= 5 or any(phrase == text for phrase in LOW_SIGNAL_PHRASES):
+    compact = re.sub(r"\s+", "", text)
+    if len(text) <= 5 or any(phrase in compact for phrase in LOW_SIGNAL_PHRASES):
         return []
 
     detected: list[dict[str, Any]] = []
-    for strength_name, keywords in RULES:
-        if any(keyword in text for keyword in keywords):
+    for definition in load_strength_definitions().get("strengths", []):
+        strength_name = definition["name_zh"]
+        matched = _matched_definition_terms(text, definition)
+        if matched:
+            confidence_level = _confidence_level_from_matches(len(matched))
             detected.append(
                 {
                     "strength_name": strength_name,
-                    "confidence": 0.72,
+                    "confidence_level": confidence_level,
+                    "confidence": CONFIDENCE_VALUES[confidence_level],
+                    "evidence_count": 1,
+                    "evidence_sources": [_canonical_evidence_source(source)],
+                    "evidence_quotes": [text[:180]],
                     "evidence_text": text,
-                    "reason": f"文字中出現與「{strength_name}」相關的行動或感受。",
+                    "reason": f"文字中出現與「{strength_name}」相關的行動、情境或語意線索：{', '.join(matched[:4])}",
+                    "reasoning_summary": f"依 VIA 行為指標，這段內容支持「{strength_name}」的可能展現。",
+                    "child_friendly_feedback": definition.get("child_friendly_description", ""),
+                    "teacher_facing_explanation": (
+                        f"此判斷依據具體文字線索與 VIA「{strength_name}」rubric，"
+                        "不是正式心理測驗結果；若只有單一證據，建議持續觀察。"
+                    ),
                 }
             )
+    detected.sort(key=lambda item: (item["confidence"], len(item["reason"])), reverse=True)
     return detected[:2]
+
+
+def _matched_definition_terms(text: str, definition: dict[str, Any]) -> list[str]:
+    terms: list[str] = []
+    for field in ("counseling_keywords", "semantic_cues", "observable_behaviors", "behavior_indicators"):
+        for value in definition.get(field, []):
+            for term in _candidate_terms(str(value)):
+                if term and term in text and term not in terms:
+                    terms.append(term)
+    return terms
+
+
+def _candidate_terms(value: str) -> list[str]:
+    parts = re.split(r"[，、；,;／/（）()「」\s]+", value)
+    return [part for part in parts if len(part) >= 2]
+
+
+def _confidence_level_from_matches(match_count: int) -> str:
+    if match_count >= 4:
+        return "high"
+    if match_count >= 2:
+        return "medium"
+    return "low"
+
+
+def _canonical_evidence_source(source: str) -> str:
+    source_map = {
+        "initial_profile": "counseling_record",
+        "counseling_record": "counseling_record",
+        "diary": "journal",
+        "journal": "journal",
+        "todo": "task",
+        "task": "task",
+        "game": "game_response",
+        "game_reflection": "game_response",
+        "game_response": "game_response",
+        "chat": "platform_interaction",
+        "platform_interaction": "platform_interaction",
+    }
+    return source_map.get(str(source or "platform_interaction"), "platform_interaction")
 
 
 def save_child_strength(

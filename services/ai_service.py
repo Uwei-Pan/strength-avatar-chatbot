@@ -6,8 +6,18 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from services.strength_service import detect_strengths_rule_based, normalize_strength_name
-from services.student_profile_service import get_ai_case_context, get_random_strength_case
+from services.strength_service import (
+    build_via_prompt_context,
+    detect_strengths_rule_based,
+    get_strength_definition_by_name,
+    get_via_interpretation_principles,
+    normalize_strength_name,
+)
+from services.student_profile_service import (
+    get_ai_case_context,
+    get_ai_observation_context,
+    get_random_strength_case,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +70,14 @@ ALLOWED_STRENGTH_NAMES = {
     "希望",
     "幽默",
     "靈性",
+}
+
+ALLOWED_EVIDENCE_SOURCES = {
+    "counseling_record",
+    "journal",
+    "task",
+    "game_response",
+    "platform_interaction",
 }
 
 
@@ -234,9 +252,13 @@ def _analyze_with_gemini(
         if item.get("name_zh")
     ]
     case_context = get_ai_case_context(child_profile.get("child_id", ""))
+    observation_context = get_ai_observation_context(child_profile.get("child_id", ""))
+    via_context = build_via_prompt_context()
+    via_principles = "\n".join(f"- {item}" for item in get_via_interpretation_principles())
     prompt = f"""
 你是一位溫暖、支持、鼓勵孩子的兒少優勢探索 AI 夥伴。請用繁體中文回覆。
 你的任務不是批評、命令或診斷孩子，而是陪孩子一起理解感受、看見自己的優勢，並給出簡單可行的小建議。
+你會使用 VIA 24 項品格優勢作為「觀察 rubric」，但不得要求孩子填寫問卷，也不得宣稱這是正式心理測驗。
 
 孩子資料：
 - 名字：{child_profile.get("name", "孩子")}
@@ -245,11 +267,19 @@ def _analyze_with_gemini(
 可引用的過去匿名案例：
 {case_context}
 
+可優先參考的跨來源觀察資料：
+{observation_context}
+
 孩子訊息：
 {message}
 
 只能使用以下 24 種優勢名稱，不可以創造其他名稱：
 {", ".join(sorted(ALLOWED_STRENGTH_NAMES))}
+
+{via_context}
+
+VIA 解釋守則：
+{via_principles}
 
 請只回傳 JSON，不要加 Markdown。格式必須是：
 {{
@@ -258,9 +288,16 @@ def _analyze_with_gemini(
   "detected_strengths": [
     {{
       "strength_name": "優勢名稱",
+      "confidence_level": "high | medium | low",
       "confidence": 0.0,
+      "evidence_count": 1,
+      "evidence_sources": ["counseling_record | journal | task | game_response | platform_interaction"],
+      "evidence_quotes": ["孩子或紀錄中的具體短句"],
       "evidence_text": "孩子訊息中的具體 evidence",
-      "reason": "判斷原因"
+      "reason": "判斷原因",
+      "reasoning_summary": "用 1-2 句說明為什麼這些行為支持此優勢；若證據少請說需要更多觀察",
+      "child_friendly_feedback": "給孩子看的鼓勵回饋，必須引用具體行為",
+      "teacher_facing_explanation": "給老師/輔導者看的解釋，說明來源、信心與限制"
     }}
   ],
   "should_award_tokens": true,
@@ -280,6 +317,12 @@ def _analyze_with_gemini(
 - 不責備、不說教、不過度診斷，也不要要求孩子立刻變好。
 - 不要每次都硬判斷優勢。
 - 如果只是「今天很累」「不知道」「還好」這類低訊息內容，不要新增優勢。
+- 如果具體行為證據不足，detected_strengths 請留空，或將 confidence_level 設為 low 並在 reasoning_summary 標示「需要更多觀察」。
+- 如果兩項優勢證據量接近，可以在 reasoning_summary 說「相近」或「可能並列」，不要強行排序。
+- 不要說任何優勢是弱點，也不要把孩子和其他學生比較。
+- 優勢是可成長的觀察，不是固定人格標籤。
+- evidence_quotes 必須是可從孩子訊息或觀察資料中找到的短句；不能編造紀錄。
+- evidence_sources 只能使用 counseling_record、journal、task、game_response、platform_interaction。
 - 如果孩子低落、自責或挫折，先承接情緒，不急著貼標籤。
 - detected_strengths 最多 2 個。
 - 如果要提到過去案例，只能使用「可引用的過去匿名案例」中明確存在的內容。
@@ -445,9 +488,104 @@ def _clean_detected_strengths(detected: list[Any]) -> list[dict[str, Any]]:
 
         item = dict(item)
         item["strength_name"] = strength_name
-        item["confidence"] = float(item.get("confidence") or 0.7)
+        item["confidence_level"] = _clean_confidence_level(
+            str(item.get("confidence_level") or ""),
+            item.get("confidence"),
+        )
+        item["confidence"] = _confidence_value(item.get("confidence"), item["confidence_level"])
+        item["evidence_count"] = _clean_evidence_count(item)
+        item["evidence_sources"] = _clean_evidence_sources(item.get("evidence_sources"))
+        item["evidence_quotes"] = _clean_evidence_quotes(item.get("evidence_quotes"), item.get("evidence_text"))
+        item["evidence_text"] = str(item.get("evidence_text") or (item["evidence_quotes"][0] if item["evidence_quotes"] else ""))
+        item["reason"] = str(item.get("reason") or item.get("reasoning_summary") or "")
+        item["reasoning_summary"] = str(item.get("reasoning_summary") or item["reason"] or "需要更多觀察。")
+        definition = get_strength_definition_by_name(strength_name) or {}
+        item["child_friendly_feedback"] = str(
+            item.get("child_friendly_feedback")
+            or definition.get("child_friendly_description")
+            or f"我看到你有一點「{strength_name}」的表現。"
+        )
+        item["teacher_facing_explanation"] = str(
+            item.get("teacher_facing_explanation")
+            or (
+                f"此判斷依據具體行為文字與 VIA「{strength_name}」rubric；"
+                "不是正式心理測驗結果，證據少時需持續觀察。"
+            )
+        )
         cleaned.append(item)
         seen.add(strength_name)
         if len(cleaned) >= 2:
             break
     return cleaned
+
+
+def _clean_confidence_level(value: str, confidence: Any) -> str:
+    lowered = value.strip().lower()
+    if lowered in {"high", "medium", "low"}:
+        return lowered
+    try:
+        numeric = float(confidence)
+    except (TypeError, ValueError):
+        numeric = 0.7
+    if numeric >= 0.8:
+        return "high"
+    if numeric >= 0.55:
+        return "medium"
+    return "low"
+
+
+def _confidence_value(value: Any, level: str) -> float:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        numeric = {"high": 0.86, "medium": 0.68, "low": 0.45}.get(level, 0.68)
+    return max(0.0, min(1.0, numeric))
+
+
+def _clean_evidence_count(item: dict[str, Any]) -> int:
+    try:
+        count = int(item.get("evidence_count") or 0)
+    except (TypeError, ValueError):
+        count = 0
+    quotes = item.get("evidence_quotes")
+    if isinstance(quotes, list):
+        count = max(count, len([quote for quote in quotes if str(quote).strip()]))
+    if item.get("evidence_text"):
+        count = max(count, 1)
+    return count
+
+
+def _clean_evidence_sources(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        value = [value] if value else ["platform_interaction"]
+    source_map = {
+        "initial_profile": "counseling_record",
+        "counseling_record": "counseling_record",
+        "diary": "journal",
+        "journal": "journal",
+        "todo": "task",
+        "task": "task",
+        "game": "game_response",
+        "game_reflection": "game_response",
+        "game_response": "game_response",
+        "chat": "platform_interaction",
+        "platform_interaction": "platform_interaction",
+    }
+    sources = []
+    for source in value:
+        normalized = source_map.get(str(source or "").strip(), "platform_interaction")
+        if normalized in ALLOWED_EVIDENCE_SOURCES and normalized not in sources:
+            sources.append(normalized)
+    return sources or ["platform_interaction"]
+
+
+def _clean_evidence_quotes(value: Any, fallback: Any) -> list[str]:
+    quotes = value if isinstance(value, list) else []
+    cleaned = []
+    for quote in quotes:
+        text = str(quote or "").strip()
+        if text:
+            cleaned.append(text[:220])
+    if not cleaned and fallback:
+        cleaned.append(str(fallback).strip()[:220])
+    return cleaned[:3]

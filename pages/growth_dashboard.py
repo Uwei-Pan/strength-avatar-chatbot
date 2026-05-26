@@ -26,7 +26,17 @@ SOURCE_LABELS = {
     "todo": "任務",
     "game": "遊戲",
     "game_reflection": "遊戲反思",
+    "journal": "心情日記",
+    "task": "任務",
+    "game_response": "遊戲回答",
+    "platform_interaction": "平台互動",
     "unknown": "其他",
+}
+
+CONFIDENCE_LABELS = {
+    "high": "high",
+    "medium": "medium",
+    "low": "low",
 }
 
 
@@ -67,6 +77,7 @@ def render() -> None:
     )
 
     _render_summary(summary)
+    _render_via_backing(dashboard)
     _render_distribution(dashboard)
     _render_trend(dashboard)
     _render_sources(dashboard)
@@ -92,6 +103,42 @@ def _render_summary(summary: dict[str, Any]) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def _render_via_backing(dashboard: dict[str, Any]) -> None:
+    st.markdown('<p class="kid-section-title">VIA 優勢觀察背書</p>', unsafe_allow_html=True)
+    st.info(
+        "本分析依據 VIA 24 項品格優勢架構進行，但不是正式心理測驗結果；"
+        "它是學習與輔導情境中的優勢觀察。證據少的項目會標示為需要更多觀察，不能稱為弱點。"
+    )
+
+    evidence_summary = list(dashboard.get("evidence_summary") or [])
+    if not evidence_summary:
+        st.caption("目前還沒有足夠的具體行為證據。")
+        return
+
+    for item in evidence_summary[:6]:
+        with st.container(border=True):
+            top_cols = st.columns([1.2, 1, 1.6], vertical_alignment="center")
+            top_cols[0].markdown(f"**{escape(str(item.get('strength_name') or '優勢'))}**")
+            top_cols[1].markdown(f"信心程度：`{CONFIDENCE_LABELS.get(str(item.get('confidence_level')), 'low')}`")
+            top_cols[2].markdown(f"證據數：`{int(item.get('evidence_count') or 0)}`")
+
+            source_counts = item.get("evidence_sources") or {}
+            chips = []
+            color_classes = ["chip-a", "chip-b", "chip-c", "chip-d", "chip-e", "chip-f"]
+            for index, (source, count) in enumerate(source_counts.items()):
+                label = SOURCE_LABELS.get(str(source), str(source))
+                chips.append(
+                    f'<span class="strength-chip {color_classes[index % len(color_classes)]}">'
+                    f'{escape(label)}：{int(count)}</span>'
+                )
+            if chips:
+                st.markdown(f'<div class="kid-badge-row">{"".join(chips)}</div>', unsafe_allow_html=True)
+
+            for quote in item.get("evidence_quotes", [])[:3]:
+                st.markdown(f"> {escape(str(quote))}")
+            st.caption(str(item.get("reasoning_summary") or ""))
 
 
 def _render_distribution(dashboard: dict[str, Any]) -> None:

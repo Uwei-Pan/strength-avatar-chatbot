@@ -6,11 +6,39 @@ from typing import Any
 
 from database.db_connection import DatabaseConnectionError, fetch_all, fetch_one
 from services.student_profile_service import get_top_strengths
-from services.strength_service import normalize_strength_name
+from services.strength_service import detect_strengths_rule_based, normalize_strength_name
+
+
+SOURCE_ALIASES = {
+    "initial_profile": "counseling_record",
+    "counseling_record": "counseling_record",
+    "diary": "journal",
+    "journal": "journal",
+    "todo": "task",
+    "task": "task",
+    "game": "game_response",
+    "game_reflection": "game_response",
+    "game_response": "game_response",
+    "chat": "platform_interaction",
+    "platform_interaction": "platform_interaction",
+    "unknown": "platform_interaction",
+}
+
+LOW_OBSERVATION_PHRASES = [
+    "想知道我的優勢",
+    "可以給我建議",
+    "可以鼓勵我",
+    "請給我一個小任務",
+    "我不知道怎麼",
+    "呼叫不到你",
+    "不知道",
+    "還好",
+    "嗨",
+]
 
 
 def build_growth_dashboard(child_id: str) -> dict[str, Any]:
-    records = _fetch_strength_records(child_id)
+    records = _dedupe_records(_fetch_strength_records(child_id) + _fetch_inferred_activity_records(child_id))
     initial_rows = _initial_strength_rows(child_id, records)
 
     initial_counts = _count_strengths(initial_rows)
@@ -20,7 +48,7 @@ def build_growth_dashboard(child_id: str) -> dict[str, Any]:
 
     comparison = _comparison_rows(initial_counts, current_counts, initial_rows, records)
     trend = _trend_rows(records, initial_counts)
-    source_counts = Counter(str(row.get("source") or "unknown") for row in records)
+    source_counts = Counter(_canonical_source(str(row.get("source") or "unknown")) for row in records)
     summary = _summary(initial_counts, current_counts, records, comparison, child_id)
 
     return {
@@ -29,6 +57,7 @@ def build_growth_dashboard(child_id: str) -> dict[str, Any]:
         "comparison": comparison,
         "trend": trend,
         "source_counts": dict(source_counts),
+        "evidence_summary": _evidence_summary(records),
         "summary": summary,
         "has_initial_data": bool(initial_counts),
         "has_current_data": bool(current_counts),
@@ -45,6 +74,7 @@ def _fetch_strength_records(child_id: str) -> list[dict[str, Any]]:
                 s.category,
                 cs.source,
                 cs.evidence_text,
+                cs.confidence,
                 cs.created_at
             FROM child_strengths cs
             JOIN strengths s ON s.strength_id = cs.strength_id
@@ -54,6 +84,130 @@ def _fetch_strength_records(child_id: str) -> list[dict[str, Any]]:
             (child_id,),
         )
     )
+
+
+def _fetch_inferred_activity_records(child_id: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    rows.extend(_infer_from_text_rows(
+        _safe_fetch_rows(
+            """
+            SELECT content AS text, created_at
+            FROM diary_entries
+            WHERE child_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT 30
+            """,
+            child_id,
+        ),
+        "journal",
+    ))
+    rows.extend(_infer_from_text_rows(
+        _safe_fetch_rows(
+            """
+            SELECT CONCAT(
+                CASE WHEN is_completed THEN '已完成任務：' ELSE '未完成任務：' END,
+                title,
+                CASE WHEN description IS NULL OR description = '' THEN '' ELSE CONCAT('；', description) END
+            ) AS text,
+            COALESCE(completed_at, created_at) AS created_at,
+            is_completed
+            FROM todo_items
+            WHERE child_id = %s
+            ORDER BY COALESCE(completed_at, created_at) DESC, id DESC
+            LIMIT 30
+            """,
+            child_id,
+        ),
+        "task",
+    ))
+    rows.extend(_infer_from_text_rows(
+        _safe_fetch_rows(
+            """
+            SELECT CONCAT('問題：', question, '；回答：', answer) AS text, created_at
+            FROM game_reflections
+            WHERE child_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT 30
+            """,
+            child_id,
+        ),
+        "game_response",
+    ))
+    rows.extend(_infer_from_text_rows(
+        _safe_fetch_rows(
+            """
+            SELECT user_message AS text, created_at
+            FROM chat_logs
+            WHERE child_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT 30
+            """,
+            child_id,
+        ),
+        "platform_interaction",
+    ))
+    return rows
+
+
+def _safe_fetch_rows(sql: str, child_id: str) -> list[dict[str, Any]]:
+    try:
+        return list(fetch_all(sql, (child_id,)))
+    except Exception:
+        return []
+
+
+def _infer_from_text_rows(rows: list[dict[str, Any]], source: str) -> list[dict[str, Any]]:
+    inferred = []
+    for row in rows:
+        text = str(row.get("text") or "").strip()
+        if not text:
+            continue
+        detections = detect_strengths_rule_based(text, source=source)
+        if source == "task" and row.get("is_completed") and not any(
+            item.get("strength_name") == "勤奮" for item in detections
+        ):
+            detections.append(
+                {
+                    "strength_name": "勤奮",
+                    "confidence": 0.55,
+                    "confidence_level": "low",
+                    "reason": "完成任務可作為勤奮的低度行為線索，仍需更多情境佐證。",
+                }
+            )
+        for item in detections:
+            inferred.append(
+                {
+                    "strength_name": normalize_strength_name(str(item.get("strength_name") or "")),
+                    "category": "",
+                    "source": _canonical_source(source),
+                    "evidence_text": text,
+                    "confidence": float(item.get("confidence") or 0.55),
+                    "created_at": row.get("created_at"),
+                }
+            )
+    return inferred
+
+
+def _dedupe_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen = set()
+    result = []
+    for row in records:
+        strength_name = normalize_strength_name(str(row.get("strength_name") or ""))
+        evidence = str(row.get("evidence_text") or "").strip()
+        if not strength_name or not evidence:
+            continue
+        row = dict(row)
+        row["strength_name"] = strength_name
+        row["source"] = _canonical_source(str(row.get("source") or "platform_interaction"))
+        if row["source"] != "counseling_record" and _is_low_observation_text(evidence):
+            continue
+        key = (strength_name, row["source"], evidence[:160])
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(row)
+    result.sort(key=lambda item: str(item.get("created_at") or ""))
+    return result
 
 
 def _initial_strength_rows(child_id: str, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -66,7 +220,7 @@ def _initial_strength_rows(child_id: str, records: list[dict[str, Any]]) -> list
             {
                 "strength_name": strength_name,
                 "category": item.get("category") or "",
-                "source": "initial_profile",
+                "source": "counseling_record",
                 "created_at": None,
             }
         )
@@ -191,6 +345,79 @@ def _summary(
     }
 
 
+def _evidence_summary(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in records:
+        strength_name = normalize_strength_name(str(row.get("strength_name") or ""))
+        if strength_name:
+            grouped.setdefault(strength_name, []).append(row)
+
+    result = []
+    for strength_name, rows in grouped.items():
+        source_counts = Counter(_canonical_source(str(row.get("source") or "unknown")) for row in rows)
+        confidences = [_safe_float(row.get("confidence"), 0.55) for row in rows]
+        evidence_count = len(rows)
+        result.append(
+            {
+                "strength_name": strength_name,
+                "confidence_level": _confidence_level(evidence_count, source_counts, max(confidences or [0.0])),
+                "evidence_count": evidence_count,
+                "evidence_sources": dict(source_counts),
+                "evidence_quotes": _evidence_quotes(rows),
+                "reasoning_summary": _reasoning_summary(strength_name, evidence_count, source_counts),
+            }
+        )
+
+    result.sort(
+        key=lambda item: (
+            {"high": 3, "medium": 2, "low": 1}.get(item["confidence_level"], 0),
+            item["evidence_count"],
+            item["strength_name"],
+        ),
+        reverse=True,
+    )
+    return result
+
+
+def _confidence_level(evidence_count: int, source_counts: Counter[str], max_confidence: float) -> str:
+    if evidence_count >= 4 and len(source_counts) >= 2:
+        return "high"
+    if max_confidence >= 0.82 and evidence_count >= 2:
+        return "high"
+    if evidence_count >= 2 or max_confidence >= 0.65:
+        return "medium"
+    return "low"
+
+
+def _evidence_quotes(rows: list[dict[str, Any]]) -> list[str]:
+    quotes = []
+    for row in sorted(rows, key=lambda item: str(item.get("created_at") or ""), reverse=True):
+        text = str(row.get("evidence_text") or "").strip().replace("\n", " ")
+        if not text:
+            continue
+        if len(text) > 180:
+            text = text[:180] + "..."
+        if text not in quotes:
+            quotes.append(text)
+        if len(quotes) >= 3:
+            break
+    return quotes
+
+
+def _reasoning_summary(strength_name: str, evidence_count: int, source_counts: Counter[str]) -> str:
+    sources = "、".join(source_counts.keys())
+    if evidence_count <= 1:
+        return f"目前只有 1 筆與「{strength_name}」相符的行為證據，應標示為需要更多觀察。"
+    return f"目前有 {evidence_count} 筆跨 {sources} 的具體文字或行為線索支持「{strength_name}」。"
+
+
+def _is_low_observation_text(text: str) -> bool:
+    compact = "".join(text.split())
+    if len(compact) <= 8:
+        return True
+    return any(phrase in compact for phrase in LOW_OBSERVATION_PHRASES)
+
+
 def _category_lookup(rows: list[dict[str, Any]]) -> dict[str, str]:
     result = {}
     for row in rows:
@@ -198,6 +425,17 @@ def _category_lookup(rows: list[dict[str, Any]]) -> dict[str, str]:
         if strength_name and row.get("category"):
             result[strength_name] = str(row.get("category"))
     return result
+
+
+def _canonical_source(source: str) -> str:
+    return SOURCE_ALIASES.get(str(source or "unknown"), "platform_interaction")
+
+
+def _safe_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _safe_count(sql: str, child_id: str) -> int:

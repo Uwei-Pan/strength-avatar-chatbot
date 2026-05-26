@@ -12,6 +12,21 @@ from services.avatar_assets import (
 from services.child_service import get_child
 
 
+SOURCE_LABELS = {
+    "initial_profile": "初始資料",
+    "counseling_record": "過去紀錄",
+    "chat": "聊天",
+    "diary": "心情日記",
+    "journal": "心情日記",
+    "todo": "任務",
+    "task": "任務",
+    "game": "遊戲",
+    "game_reflection": "遊戲回答",
+    "game_response": "遊戲回答",
+    "platform_interaction": "平台互動",
+}
+
+
 def render() -> None:
     child_id = st.session_state.get("child_id")
     try:
@@ -63,6 +78,7 @@ def render() -> None:
     )
 
     st.markdown('<p class="kid-section-title">已擁有的優勢</p>', unsafe_allow_html=True)
+    st.caption("依據 VIA 24 項品格優勢架構整理，但不是正式心理測驗結果；這裡呈現的是平台與輔導情境中的優勢觀察。")
     unique_strengths = {}
     for item in child["owned_strengths"]:
         unique_strengths[item["name_zh"]] = item
@@ -72,7 +88,10 @@ def render() -> None:
         for strength in unique_strengths.values():
             with st.expander(f"{strength['name_zh']}｜{strength['category']}"):
                 st.write(strength["evidence_text"])
-                st.caption(f"來源：{strength['source']}")
+                confidence = float(strength.get("confidence") or 0)
+                confidence_level = "high" if confidence >= 0.8 else "medium" if confidence >= 0.55 else "low"
+                source_label = SOURCE_LABELS.get(str(strength.get("source")), str(strength.get("source") or "其他"))
+                st.caption(f"來源：{source_label}｜信心程度：{confidence_level}")
     else:
         st.info("還沒有儲存的優勢紀錄。")
 

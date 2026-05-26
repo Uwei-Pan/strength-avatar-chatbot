@@ -4,6 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from database.db_connection import fetch_all
 from services.strength_service import normalize_strength_name
 
 
@@ -82,3 +83,109 @@ def get_ai_case_context(child_id: str, max_strengths: int = 5, max_cases_each: i
     if not lines:
         return "沒有可引用的過去案例。"
     return "\n".join(lines)
+
+
+def get_ai_observation_context(child_id: str, limit_each: int = 5) -> str:
+    sections = [
+        _format_observation_section("輔導紀錄 / counseling_record", _counseling_observations(child_id, limit_each)),
+        _format_observation_section("心情日記 / journal", _db_text_rows(
+            """
+            SELECT content AS text, created_at
+            FROM diary_entries
+            WHERE child_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s
+            """,
+            child_id,
+            limit_each,
+        )),
+        _format_observation_section("任務清單 / task", _db_text_rows(
+            """
+            SELECT CONCAT(
+                CASE WHEN is_completed THEN '已完成任務：' ELSE '未完成任務：' END,
+                title,
+                CASE WHEN description IS NULL OR description = '' THEN '' ELSE CONCAT('；', description) END
+            ) AS text,
+            COALESCE(completed_at, created_at) AS created_at
+            FROM todo_items
+            WHERE child_id = %s
+            ORDER BY COALESCE(completed_at, created_at) DESC, id DESC
+            LIMIT %s
+            """,
+            child_id,
+            limit_each,
+        )),
+        _format_observation_section("遊戲復活回答 / game_response", _db_text_rows(
+            """
+            SELECT CONCAT('問題：', question, '；回答：', answer) AS text, created_at
+            FROM game_reflections
+            WHERE child_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s
+            """,
+            child_id,
+            limit_each,
+        )),
+        _format_observation_section("平台互動文字 / platform_interaction", _db_text_rows(
+            """
+            SELECT user_message AS text, created_at
+            FROM chat_logs
+            WHERE child_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s
+            """,
+            child_id,
+            limit_each,
+        )),
+    ]
+    context = "\n".join(section for section in sections if section)
+    return context or "目前沒有足夠的跨來源觀察資料。"
+
+
+def _counseling_observations(child_id: str, limit_each: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    profile = get_student_profile(child_id)
+    if profile:
+        for record in profile.get("records", [])[: limit_each * 2]:
+            for event in record.get("key_events", [])[:2]:
+                if event:
+                    rows.append({"text": event, "created_at": record.get("source_label") or record.get("month")})
+                    if len(rows) >= limit_each:
+                        return rows
+
+    rows.extend(_db_text_rows(
+        """
+        SELECT cs.evidence_text AS text, cs.created_at
+        FROM child_strengths cs
+        WHERE cs.child_id = %s AND cs.source = 'counseling_record'
+        ORDER BY cs.created_at DESC, cs.id DESC
+        LIMIT %s
+        """,
+        child_id,
+        limit_each - len(rows),
+    ))
+    return rows[:limit_each]
+
+
+def _db_text_rows(sql: str, child_id: str, limit: int) -> list[dict[str, Any]]:
+    if limit <= 0:
+        return []
+    try:
+        return list(fetch_all(sql, (child_id, int(limit))))
+    except Exception:
+        return []
+
+
+def _format_observation_section(title: str, rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return ""
+    lines = [f"{title}："]
+    for row in rows:
+        text = str(row.get("text") or "").strip()
+        if not text:
+            continue
+        text = text.replace("\n", " ")
+        if len(text) > 180:
+            text = text[:180] + "..."
+        lines.append(f"- {text}")
+    return "\n".join(lines) if len(lines) > 1 else ""
