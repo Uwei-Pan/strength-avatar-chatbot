@@ -31,13 +31,19 @@ def render() -> None:
     st.caption(f"目前代幣：{child['tokens']}")
 
     with st.form("diary_form", clear_on_submit=True):
-        content = st.text_area("今天想記下什麼？", height=160)
+        content = st.text_area(
+            "今天想記下什麼？",
+            height=160,
+            placeholder="可以寫下今天的一件小事，也可以寫你的心情喔！例如：今天最開心、最難過或最想分享的是什麼？",
+        )
         submitted = st.form_submit_button("儲存日記")
 
     if submitted:
         cleaned = content.strip()
-        if len(cleaned) < 3:
-            st.warning("可以多寫一點點，讓小幫手更了解你今天的狀態。")
+        if not cleaned:
+            st.warning("先寫下一點點今天的心情，再交給小幫手保存。")
+        elif len(cleaned) < 3:
+            st.warning("可以再多寫幾個字，讓小幫手更了解你今天的狀態。")
         else:
             try:
                 result = create_diary_entry(child, cleaned)

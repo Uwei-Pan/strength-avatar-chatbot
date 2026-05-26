@@ -3,17 +3,15 @@ from html import escape
 import streamlit as st
 
 from database.db_connection import DatabaseConnectionError
+from services.avatar_assets import (
+    character_visual_html,
+    get_character_profile,
+    get_outfit_profile,
+    get_selected_outfit_profile,
+    list_character_profiles,
+    outfit_visual_html,
+)
 from services.child_service import get_child, update_selected_character, update_selected_outfit
-
-
-CHARACTER_LABELS = {
-    "fox": "狐狸",
-    "cat": "貓咪",
-    "rabbit": "兔子",
-    "inventor": "小小發明家",
-}
-
-CHARACTER_OPTIONS = ["fox", "cat", "rabbit", "inventor"]
 
 
 def render() -> None:
@@ -37,33 +35,69 @@ def render() -> None:
         """,
         unsafe_allow_html=True,
     )
-    st.metric("目前角色", CHARACTER_LABELS.get(child["selected_character"], child["selected_character"]))
-    st.metric("目前服裝", _selected_outfit_name(child))
+    current_character = get_character_profile(child.get("selected_character"))
+    current_outfit = get_selected_outfit_profile(child)
+    st.markdown(
+        f"""
+        <div class="avatar-profile-card">
+            <div class="avatar-figure">{character_visual_html(current_character, "is-large")}</div>
+            <div>
+                <span class="kid-tag {escape(current_character["accent"])}">目前角色</span>
+                <h3>{escape(current_character["display_name"])}｜{escape(current_character["title"])}</h3>
+                <p>{escape(current_character["description"])}</p>
+                <div class="equipment-preview-card">
+                    {outfit_visual_html(current_outfit, "is-small")}
+                    <div>
+                        <strong>{escape(current_outfit["display_name"])}</strong>
+                        <p>{escape(str(current_outfit["short_description"]))}</p>
+                        <p class="gear-buff-line">{escape(str((current_outfit.get("buff") or {}).get("buff_label") or "外觀裝備"))}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown('<p class="kid-section-title">選擇角色</p>', unsafe_allow_html=True)
-    character_cols = st.columns(len(CHARACTER_OPTIONS))
-    for index, character_key in enumerate(CHARACTER_OPTIONS):
-        with character_cols[index]:
-            label = CHARACTER_LABELS.get(character_key, character_key)
-            disabled = child["selected_character"] == character_key
-            if st.button(label, key=f"character_{character_key}", disabled=disabled, use_container_width=True):
-                try:
-                    update_selected_character(child_id, character_key)
-                except DatabaseConnectionError as exc:
-                    st.error(str(exc))
-                    return
-                st.success("角色已更新。")
-                st.rerun()
+    profiles = list_character_profiles()
+    for row_start in range(0, len(profiles), 4):
+        row_profiles = profiles[row_start : row_start + 4]
+        character_cols = st.columns(len(row_profiles))
+        for index, profile in enumerate(row_profiles):
+            with character_cols[index]:
+                disabled = child["selected_character"] == profile["key"]
+                st.markdown(
+                    f"""
+                    <div class="character-card">
+                        {character_visual_html(profile)}
+                        <strong>{escape(profile["display_name"])}</strong>
+                        <span>{escape(profile["title"])}</span>
+                        <p>{escape(profile["description"])}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if st.button(
+                    "使用中" if disabled else "選擇",
+                    key=f"character_{profile['key']}",
+                    disabled=disabled,
+                    use_container_width=True,
+                ):
+                    try:
+                        update_selected_character(child_id, profile["key"])
+                    except DatabaseConnectionError as exc:
+                        st.error(str(exc))
+                        return
+                    st.success("角色已更新。")
+                    st.rerun()
 
     outfits = child["unlocked_outfits"]
     if not outfits:
         st.info("目前還沒有解鎖服裝。")
         return
 
-    labels = {
-        outfit["outfit_id"]: outfit["display_name"]
-        for outfit in outfits
-    }
+    labels = {outfit["outfit_id"]: get_outfit_profile(outfit)["display_name"] for outfit in outfits}
     selected = st.selectbox(
         "切換服裝",
         options=list(labels.keys()),
@@ -85,16 +119,11 @@ def render() -> None:
         st.rerun()
 
     st.markdown('<p class="kid-section-title">已解鎖</p>', unsafe_allow_html=True)
-    for outfit in outfits:
-        st.markdown(
-            f"""
-            <div class="kid-card">
-                <strong>{escape(str(outfit["display_name"]))}</strong><br>
-                <span class="kid-tag chip-b">解鎖方式：{escape(_source_label(outfit["unlocked_source"]))}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    for row_start in range(0, len(outfits), 3):
+        cols = st.columns(min(3, len(outfits) - row_start))
+        for index, outfit in enumerate(outfits[row_start : row_start + 3]):
+            with cols[index]:
+                _render_outfit_card(outfit, owned=True, equipped=outfit.get("outfit_id") == child.get("selected_outfit"))
 
 
 def _source_label(source: str) -> str:
@@ -108,9 +137,23 @@ def _source_label(source: str) -> str:
     return labels.get(source, "已解鎖")
 
 
-def _selected_outfit_name(child: dict) -> str:
-    selected = child.get("selected_outfit")
-    for outfit in child.get("unlocked_outfits", []):
-        if outfit["outfit_id"] == selected:
-            return outfit["display_name"]
-    return "尚未選擇"
+def _render_outfit_card(outfit: dict, *, owned: bool, equipped: bool = False) -> None:
+    profile = get_outfit_profile(outfit)
+    strength = profile.get("strength_name") or "自由搭配"
+    source = _source_label(str(profile.get("unlocked_source") or ""))
+    buff = profile.get("buff") or {}
+    equipped_class = " is-equipped" if equipped else ""
+    st.markdown(
+        f"""
+        <div class="outfit-card{equipped_class}">
+            {outfit_visual_html(profile)}
+            <strong>{escape(str(profile["display_name"]))}</strong>
+            <p>{escape(str(profile["short_description"]))}</p>
+            <p class="gear-buff-line">{escape(str(buff.get("buff_label") or "外觀裝備"))}</p>
+            <span class="kid-tag {escape(str(profile["accent"]))}">優勢：{escape(str(strength))}</span>
+            <span class="kid-tag chip-b">{escape(source if owned else "可解鎖")}</span>
+            {('<span class="kid-tag chip-a">裝備中</span>' if equipped else '')}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

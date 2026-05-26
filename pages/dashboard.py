@@ -3,15 +3,13 @@ from html import escape
 import streamlit as st
 
 from database.db_connection import DatabaseConnectionError
+from services.avatar_assets import (
+    character_visual_html,
+    get_character_profile,
+    get_selected_outfit_profile,
+    outfit_visual_html,
+)
 from services.child_service import get_child
-
-
-CHARACTER_LABELS = {
-    "fox": "狐狸",
-    "cat": "貓咪",
-    "rabbit": "兔子",
-    "inventor": "小小發明家",
-}
 
 
 def render() -> None:
@@ -35,10 +33,34 @@ def render() -> None:
         """,
         unsafe_allow_html=True,
     )
+    character = get_character_profile(child.get("selected_character"))
+    outfit = get_selected_outfit_profile(child)
     col1, col2, col3 = st.columns(3)
     col1.metric("代幣", child["tokens"])
-    col2.metric("角色", CHARACTER_LABELS.get(child["selected_character"], child["selected_character"]))
-    col3.metric("服裝", _selected_outfit_name(child))
+    col2.metric("角色", character["display_name"])
+    col3.metric("服裝", outfit["display_name"])
+
+    st.markdown(
+        f"""
+        <div class="avatar-profile-card">
+            <div class="avatar-figure">{character_visual_html(character, "is-large")}</div>
+            <div>
+                <span class="kid-tag {escape(character["accent"])}">{escape(character["title"])}</span>
+                <h3>{escape(character["display_name"])}穿著{escape(outfit["display_name"])}</h3>
+                <p>{escape(character["description"])}</p>
+                <div class="equipment-preview-card">
+                    {outfit_visual_html(outfit, "is-small")}
+                    <div>
+                        <strong>{escape(outfit["display_name"])}</strong>
+                        <p>{escape(str(outfit["short_description"]))}</p>
+                        <p class="gear-buff-line">{escape(str((outfit.get("buff") or {}).get("buff_label") or "外觀裝備"))}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown('<p class="kid-section-title">已擁有的優勢</p>', unsafe_allow_html=True)
     unique_strengths = {}
@@ -53,15 +75,6 @@ def render() -> None:
                 st.caption(f"來源：{strength['source']}")
     else:
         st.info("還沒有儲存的優勢紀錄。")
-
-
-def _selected_outfit_name(child: dict) -> str:
-    selected = child.get("selected_outfit")
-    for outfit in child.get("unlocked_outfits", []):
-        if outfit["outfit_id"] == selected:
-            return outfit["display_name"]
-    return "尚未選擇"
-
 
 def _render_strength_tags(strength_names: list[str]) -> None:
     chips = []

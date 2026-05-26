@@ -16,8 +16,8 @@ def render() -> None:
     )
 
     with st.form("login_form"):
-        username = st.text_input("帳號", value="studentB")
-        password = st.text_input("密碼", type="password", value="1234")
+        username = st.text_input("帳號", value="studentB", placeholder="例如：studentB")
+        password = st.text_input("密碼", type="password", value="1234", placeholder="請輸入你的密碼")
         submitted = st.form_submit_button("進入我的基地", use_container_width=True)
 
     if submitted:

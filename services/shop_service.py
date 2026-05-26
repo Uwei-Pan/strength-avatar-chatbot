@@ -12,8 +12,11 @@ def list_shop_outfits(child_id: str) -> list[dict[str, Any]]:
             o.name,
             o.display_name,
             o.cost,
+            o.related_strength_id,
             s.name_zh AS strength_name,
             s.category,
+            s.description AS strength_description,
+            s.suggestion AS strength_suggestion,
             CASE WHEN co.id IS NULL THEN FALSE ELSE TRUE END AS is_owned
         FROM outfits o
         LEFT JOIN strengths s ON s.strength_id = o.related_strength_id

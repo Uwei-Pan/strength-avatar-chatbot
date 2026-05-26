@@ -105,7 +105,7 @@ def _render_input(child: dict[str, Any], session: dict[str, Any]) -> None:
         message = st.text_area(
             "輸入本次想聊的內容",
             height=120,
-            placeholder="例如：我今天有點生氣，因為我覺得被誤會，但我先去旁邊冷靜。",
+            placeholder="可以告訴我今天發生的一件小事，或你的心情。例如：我今天有點生氣，因為我覺得被誤會。",
         )
         submitted = st.form_submit_button("送出給 AI 夥伴", use_container_width=True)
 

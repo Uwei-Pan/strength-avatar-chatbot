@@ -6,6 +6,10 @@ import streamlit as st
 
 HTML = """
 <div class="slither-shell">
+  <div class="slither-canvas-wrap">
+    <canvas id="slither-canvas" width="760" height="480" aria-label="貪食蛇遊戲畫布"></canvas>
+    <div id="overlay" class="slither-overlay hidden"></div>
+  </div>
   <div class="slither-topbar">
     <div>
       <span class="slither-label">分數</span>
@@ -20,9 +24,8 @@ HTML = """
       <strong id="tokens">0</strong>
     </div>
   </div>
-  <canvas id="slither-canvas" width="760" height="480" aria-label="貪食蛇遊戲畫布"></canvas>
-  <div id="overlay" class="slither-overlay hidden"></div>
-  <div class="slither-help">使用方向鍵或 WASD 轉向。小光點 +10，會移動的大顆優勢果實 +40。</div>
+  <div id="buff" class="slither-buff"></div>
+  <div class="slither-help">使用方向鍵或 WASD 轉向。小光點基礎 +10，會移動的大顆優勢果實基礎 +40。</div>
 </div>
 """
 
@@ -47,7 +50,7 @@ CSS = """
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 12px;
+  margin-top: 12px;
 }
 
 .slither-topbar > div {
@@ -81,6 +84,10 @@ CSS = """
   outline: 4px solid rgba(255, 255, 255, 0.16);
 }
 
+.slither-canvas-wrap {
+  position: relative;
+}
+
 .slither-help {
   margin-top: 10px;
   color: rgba(247, 251, 255, 0.78);
@@ -89,9 +96,24 @@ CSS = """
   text-align: center;
 }
 
+.slither-buff {
+  margin-top: 10px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #fff7a8;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .slither-overlay {
   position: absolute;
-  inset: 78px 28px 54px;
+  inset: 0;
   display: grid;
   place-items: center;
   border-radius: 18px;
@@ -111,7 +133,7 @@ CSS = """
   .slither-topbar { gap: 6px; }
   .slither-topbar > div { padding: 8px; border-radius: 12px; }
   .slither-topbar strong { font-size: 18px; }
-  .slither-overlay { inset: 66px 20px 48px; }
+  .slither-overlay { inset: 0; }
 }
 """
 
@@ -124,8 +146,9 @@ export default function (component) {
   const scoreNode = parentElement.querySelector("#score")
   const lengthNode = parentElement.querySelector("#length")
   const tokenNode = parentElement.querySelector("#tokens")
+  const buffNode = parentElement.querySelector("#buff")
   const overlay = parentElement.querySelector("#overlay")
-  if (!canvas || !scoreNode || !lengthNode || !tokenNode || !overlay) return
+  if (!canvas || !scoreNode || !lengthNode || !tokenNode || !buffNode || !overlay) return
 
   const ctx = canvas.getContext("2d")
   const gameId = data?.game_id ?? "demo"
@@ -187,7 +210,7 @@ export default function (component) {
     if (!instance.gameOver) {
       update(instance, setTriggerValue)
     }
-    draw(ctx, instance, scoreNode, lengthNode, tokenNode, overlay)
+    draw(ctx, instance, scoreNode, lengthNode, tokenNode, buffNode, overlay)
     instance.frame = window.requestAnimationFrame(tick)
   }
   if (!instance.frame) {
@@ -207,6 +230,8 @@ function createGame(gameId, data) {
   const width = 760
   const height = 480
   const head = { x: 180, y: 240 }
+  const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.2)
+  const speedMultiplier = clamp(Number(data?.speed_multiplier ?? 1), 0.82, 1.05)
   const state = {
     gameId,
     width,
@@ -214,12 +239,15 @@ function createGame(gameId, data) {
     head,
     angle: 0,
     targetAngle: 0,
-    speed: 2.25,
+    speed: 2.25 * speedMultiplier,
+    scoreMultiplier,
+    speedMultiplier,
+    buffLabel: data?.buff_label ?? "",
     radius: 11,
     maxPoints: 58,
     points: [],
     foods: [],
-    score: 0,
+    score: Math.max(0, Math.round(Number(data?.bonus_start_score ?? 0))),
     serverTokens: Number(data?.tokens_earned ?? 0),
     localTokens: 0,
     sentThresholds: new Set((data?.awarded_thresholds ?? []).map(Number)),
@@ -265,13 +293,15 @@ function update(state, setTriggerValue) {
   moveStrengthFruit(state)
   if (state.strengthFruit && distance(state.head, state.strengthFruit) < state.radius + state.strengthFruit.radius) {
     const fruit = state.strengthFruit
-    state.score += fruit.points
+    const earned = addScore(state, fruit.points)
+    state.score += earned
     state.maxPoints += 18
     state.fruits.push({
       strength_name: fruit.strength,
       fruit_name: `${fruit.strength}果實`,
       score_after: state.score,
-      points: fruit.points,
+      points: earned,
+      base_points: fruit.points,
       is_strength_fruit: true,
     })
     state.strengthFruit = spawnStrengthFruit(state)
@@ -282,7 +312,7 @@ function update(state, setTriggerValue) {
     const food = state.foods[index]
     if (distance(state.head, food) < state.radius + food.radius) {
       state.foods.splice(index, 1)
-      state.score += 10
+      state.score += addScore(state, 10)
       state.maxPoints += 7
       spawnFood(state)
       maybeAwardToken(state, setTriggerValue)
@@ -290,7 +320,7 @@ function update(state, setTriggerValue) {
   }
 }
 
-function draw(ctx, state, scoreNode, lengthNode, tokenNode, overlay) {
+function draw(ctx, state, scoreNode, lengthNode, tokenNode, buffNode, overlay) {
   ctx.clearRect(0, 0, state.width, state.height)
   const gradient = ctx.createLinearGradient(0, 0, state.width, state.height)
   gradient.addColorStop(0, "#080c24")
@@ -332,7 +362,7 @@ function draw(ctx, state, scoreNode, lengthNode, tokenNode, overlay) {
   }
 
   if (state.strengthFruit) {
-    drawStrengthFruit(ctx, state.strengthFruit)
+    drawStrengthFruit(ctx, state.strengthFruit, state)
   }
 
   for (let index = state.points.length - 1; index >= 0; index -= 1) {
@@ -351,6 +381,7 @@ function draw(ctx, state, scoreNode, lengthNode, tokenNode, overlay) {
   scoreNode.textContent = String(state.score)
   lengthNode.textContent = String(Math.max(3, Math.round(state.maxPoints / 18)))
   tokenNode.textContent = String(state.serverTokens + state.localTokens)
+  buffNode.textContent = state.buffLabel ? `本局裝備加成：${state.buffLabel}` : "本局沒有裝備加成"
 
   if (state.gameOver) {
     const label = state.reason === "hit_self" ? "你撞到自己了！" : "你撞到牆壁了！"
@@ -372,6 +403,10 @@ function maybeAwardToken(state, setTriggerValue) {
     threshold,
     score: state.score,
   })
+}
+
+function addScore(state, basePoints) {
+  return Math.max(1, Math.round(Number(basePoints) * state.scoreMultiplier))
 }
 
 function finish(state, reason, setTriggerValue) {
@@ -433,7 +468,7 @@ function moveStrengthFruit(state) {
   fruit.y = Math.max(margin, Math.min(state.height - margin, fruit.y))
 }
 
-function drawStrengthFruit(ctx, fruit) {
+function drawStrengthFruit(ctx, fruit, state) {
   const pulseRadius = fruit.radius + Math.sin(fruit.pulse) * 2
   const glow = ctx.createRadialGradient(fruit.x, fruit.y, 2, fruit.x, fruit.y, pulseRadius * 4.2)
   glow.addColorStop(0, fruit.color)
@@ -465,7 +500,7 @@ function drawStrengthFruit(ctx, fruit) {
   ctx.fillStyle = "#21052c"
   ctx.font = "900 10px sans-serif"
   ctx.textAlign = "center"
-  ctx.fillText("+40", 0, 6)
+  ctx.fillText(`+${addScore(state, fruit.points)}`, 0, 6)
   ctx.restore()
 }
 
@@ -477,6 +512,11 @@ function turnToward(current, target, amount) {
 
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min
+  return Math.max(min, Math.min(max, value))
 }
 """
 
@@ -500,6 +540,7 @@ def slither_snake_game(
         on_game_over_change = lambda: None
     if on_token_award_change is None:
         on_token_award_change = lambda: None
+    buff = state.get("active_buff") or {}
 
     return _SLITHER_COMPONENT(
         key=key,
@@ -507,6 +548,10 @@ def slither_snake_game(
             "game_id": state["game_id"],
             "tokens_earned": int(state.get("tokens_earned", 0)),
             "awarded_thresholds": state.get("awarded_thresholds", []),
+            "score_multiplier": float(buff.get("score_multiplier") or 1.0),
+            "speed_multiplier": float(buff.get("speed_multiplier") or 1.0),
+            "bonus_start_score": int(buff.get("bonus_start_score") or 0),
+            "buff_label": buff.get("buff_label") if buff.get("applies") else "",
         },
         on_game_over_change=on_game_over_change,
         on_token_award_change=on_token_award_change,

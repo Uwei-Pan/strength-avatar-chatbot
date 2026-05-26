@@ -35,6 +35,7 @@ def finish_game(
     tokens_earned: int = 0,
     game_over_reason: str = "",
     game_id: str | None = None,
+    tokens_spent: int = GAME_START_COST,
 ) -> dict[str, Any]:
     payload = {
         "game_id": game_id,
@@ -51,14 +52,14 @@ def finish_game(
         (
             child_id,
             score,
-            GAME_START_COST,
+            int(tokens_spent),
             tokens_earned,
             json.dumps(payload, ensure_ascii=False),
         ),
     )
     return {
         "score": score,
-        "tokens_spent": GAME_START_COST,
+        "tokens_spent": int(tokens_spent),
         "tokens_earned": tokens_earned,
         "new_balance": None,
     }

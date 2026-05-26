@@ -68,3 +68,24 @@ def complete_todo(child_id: str, todo_id: int) -> int:
     reward = int(todo["tokens_reward"] or 10)
     award_todo_completed_tokens(child_id, reward)
     return reward
+
+
+def delete_todo(child_id: str, todo_id: int) -> None:
+    todo = fetch_one(
+        """
+        SELECT id
+        FROM todo_items
+        WHERE id = %s AND child_id = %s
+        """,
+        (todo_id, child_id),
+    )
+    if not todo:
+        raise ValueError("找不到這個任務。")
+
+    execute(
+        """
+        DELETE FROM todo_items
+        WHERE id = %s AND child_id = %s
+        """,
+        (todo_id, child_id),
+    )

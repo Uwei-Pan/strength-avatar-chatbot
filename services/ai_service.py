@@ -30,7 +30,7 @@ DEFAULT_RESULT = {
 REFLECTION_VALIDATION_FALLBACK = {
     "is_valid": False,
     "reason": "回答需要更具體一點。",
-    "gentle_prompt": "請寫至少 20 個字，說說發生了什麼、你的感覺，或你想怎麼再試一次。",
+    "gentle_prompt": "請寫下一句完整想法，說說你的感覺或下一次想怎麼做。",
     "mode": "mock",
     "error": "",
 }
@@ -142,7 +142,7 @@ def _validate_reflection_with_gemini(
 }}
 
 判斷規則：
-- 必須至少 20 個中文字/字元左右。
+- 必須至少一句完整想法，約 6 個中文字/字元以上。
 - 合格回答要有具體內容，例如事件、感受、行動、想法、想再試一次的方法、或提到某個優勢。
 - 如果只是重複字、亂打、只有「不知道」「還好」「可以」「我要復活」、無意義符號、或明顯敷衍，請判斷不合格。
 - 不要責備孩子；提醒要短、溫柔、明確。
@@ -169,11 +169,11 @@ def _validate_reflection_with_gemini(
 
 def _rule_validate_reflection(answer: str) -> dict[str, Any]:
     cleaned = answer.strip()
-    if len(cleaned) < 20:
+    if len(cleaned) < 6:
         return {
             **REFLECTION_VALIDATION_FALLBACK,
-            "reason": "回答少於 20 個字。",
-            "gentle_prompt": "請再多寫一點，至少 20 個字，說說你的感覺或下一次想怎麼做。",
+            "reason": "回答太短。",
+            "gentle_prompt": "請再多寫一點，例如：我想慢慢移動，不要太急。",
         }
 
     compact = re.sub(r"\s+", "", cleaned)

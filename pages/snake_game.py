@@ -3,7 +3,6 @@ from html import escape
 from typing import Any
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from database.db_connection import DatabaseConnectionError
 from games.block_component import neon_block_puzzle_game
@@ -12,6 +11,11 @@ from games.block_puzzle import (
 )
 from games.slither_component import slither_snake_game
 from services.ai_service import validate_reflection_answer
+from services.avatar_assets import (
+    get_game_buff_for_child,
+    get_selected_outfit_profile,
+    outfit_visual_html,
+)
 from services.child_service import get_child
 from services.game_service import (
     BLOCK_TOKEN_THRESHOLD,
@@ -28,16 +32,21 @@ from services.token_service import GAME_START_COST, InsufficientTokensError
 
 REFLECTION_QUESTIONS = [
     "今天讓你最開心的一件事是什麼？",
-    "今天有沒有一件讓你覺得有點難過或生氣的事？",
+    "今天有沒有遇到困難？你怎麼面對？",
     "今天你有幫助別人嗎？可以說說看嗎？",
     "今天你有完成什麼小挑戰嗎？",
     "今天你覺得自己哪裡做得不錯？",
-    "如果今天可以重來一次，你想怎麼做？",
+    "剛剛玩遊戲時，你有沒有很努力的地方？",
     "今天有沒有人對你很好？發生了什麼事？",
     "你剛剛玩遊戲輸掉時，有什麼感覺？",
-    "你想用哪一個優勢幫助自己再試一次？",
+    "如果再玩一次，你想用什麼策略？",
     "今天你最想謝謝誰？為什麼？",
 ]
+
+REFLECTION_PLACEHOLDER = (
+    "寫下你的想法後，就可以再挑戰一次！例如：我想慢慢移動，不要太急，"
+    "或我剛剛雖然輸了但有努力看方向。"
+)
 
 GAME_LABELS = {
     "snake": "貪食蛇",
@@ -65,18 +74,18 @@ def render() -> None:
         return
     
     st.markdown(
-        """
-        <div class="kid-hero">
-            <p class="kid-hero-title">優勢遊戲樂園</p>
-            <p class="kid-hero-copy">玩遊戲、練反思，累積自己的優勢代幣。</p>
+        f"""
+        <div class="game-compact-hero">
+            <div>
+                <p class="game-compact-title">優勢遊戲樂園</p>
+                <p class="game-compact-copy">
+                    開始一局需要 {GAME_START_COST} 代幣；結束後可以退出，或回答小問題再挑戰。
+                </p>
+            </div>
+            <span class="game-token-pill">目前 {int(child["tokens"])} 代幣</span>
         </div>
         """,
         unsafe_allow_html=True,
-    )
-    st.caption(
-        f"開始一局需要 {GAME_START_COST} 代幣。"
-        f"貪食蛇每 {SNAKE_TOKEN_THRESHOLD} 分 +1 代幣，"
-        f"方塊消除每 {BLOCK_TOKEN_THRESHOLD} 分 +1 代幣，單局最多 +{MAX_GAME_TOKENS_PER_ROUND}。"
     )
 
     locked_game = _locked_game_type()
@@ -89,6 +98,10 @@ def render() -> None:
     if notice:
         st.warning(notice, icon=":material/lock:")
 
+    exit_notice = st.session_state.pop("game_exit_notice", None)
+    if exit_notice:
+        st.success(exit_notice, icon=":material/check_circle:")
+
     current_game = st.radio(
         "選擇遊戲",
         options=["snake", "block_puzzle"],
@@ -98,20 +111,17 @@ def render() -> None:
         disabled=locked_game is not None,
     )
 
-    metric_cols = st.columns(3)
-    metric_cols[0].metric("目前代幣", child["tokens"])
-    metric_cols[1].metric("貪食蛇本局", _metric_score("snake_game"))
-    metric_cols[2].metric("方塊本局", _metric_score("block_puzzle_game"))
-
     pending = st.session_state.get("pending_reflection_question")
     if pending and pending.get("game_type") == current_game:
         _render_reflection_gate(child, pending)
         return
 
     if current_game == "snake":
-        _render_snake(child_id)
+        _render_snake(child)
     else:
-        _render_block_puzzle(child_id)
+        _render_block_puzzle(child)
+
+    _render_game_status(child, current_game)
 
 
 def _init_state() -> None:
@@ -119,6 +129,7 @@ def _init_state() -> None:
     st.session_state.setdefault("snake_game", None)
     st.session_state.setdefault("block_puzzle_game", None)
     st.session_state.setdefault("pending_reflection_question", None)
+    st.session_state.setdefault("game_exit_notice", None)
 
 
 def _locked_game_type() -> str | None:
@@ -127,23 +138,21 @@ def _locked_game_type() -> str | None:
         return str(pending.get("game_type"))
     for game_type, key in [("snake", "snake_game"), ("block_puzzle", "block_puzzle_game")]:
         state = st.session_state.get(key) or {}
-        if state.get("started") and not state.get("completed"):
+        if state.get("game_over") or (state.get("started") and not state.get("completed")):
             return game_type
     return None
 
 
-def _render_snake(child_id: str) -> None:
+def _render_snake(child: dict[str, Any]) -> None:
+    child_id = str(child["child_id"])
     state = st.session_state.get("snake_game")
     if not state:
         state = _new_snake_state()
         st.session_state["snake_game"] = state
 
     st.markdown('<p class="kid-section-title">貪食蛇：星光果實賽道</p>', unsafe_allow_html=True)
-    if state.get("completed"):
-        _render_final_summary(state, "snake")
-        if st.button("開始新一局貪食蛇", icon=":material/restart_alt:", use_container_width=True):
-            st.session_state["snake_game"] = _new_snake_state()
-            st.rerun()
+    if state.get("game_over") or state.get("completed"):
+        _render_game_over_panel(state, "snake")
         return
 
     if not state["started"]:
@@ -156,11 +165,18 @@ def _render_snake(child_id: str) -> None:
             """,
             unsafe_allow_html=True,
         )
+        _render_equipment_preview(child, "snake")
         if st.button("開始貪食蛇", icon=":material/play_arrow:", use_container_width=True):
             if _spend_start_cost(child_id):
-                st.session_state["snake_game"] = _new_snake_state(started=True)
+                st.session_state["snake_game"] = _new_snake_state(
+                    started=True,
+                    tokens_spent=GAME_START_COST,
+                    active_buff=get_game_buff_for_child(child, "snake"),
+                )
                 st.rerun()
         return
+
+    _render_running_toolbar("snake", state)
 
     result = slither_snake_game(
         state,
@@ -172,7 +188,12 @@ def _render_snake(child_id: str) -> None:
     _handle_snake_game_over(child_id, state, _component_value(result, "game_over"))
 
 
-def _new_snake_state(*, started: bool = False) -> dict[str, Any]:
+def _new_snake_state(
+    *,
+    started: bool = False,
+    tokens_spent: int = 0,
+    active_buff: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "game_id": new_game_id(),
         "started": started,
@@ -189,6 +210,8 @@ def _new_snake_state(*, started: bool = False) -> dict[str, Any]:
         "game_over": False,
         "game_over_reason": "",
         "saved": False,
+        "tokens_spent": int(tokens_spent),
+        "active_buff": active_buff or {},
     }
 
 
@@ -221,42 +244,24 @@ def _handle_snake_game_over(child_id: str, state: dict[str, Any], payload: Any) 
     state["strength_summary"] = str(payload.get("strength_summary") or "")
     state["game_over"] = True
     state["game_over_reason"] = str(payload.get("game_over_reason") or "hit_wall")
-    state["score_bank"] = int(state.get("score_bank", 0)) + state["score"]
-    if int(state.get("revivals_used", 0)) < 1:
-        _queue_reflection(
-            game_type="snake",
-            score=state["score"],
-            game_over_reason=state["game_over_reason"],
-            game_id=state["game_id"],
-            purpose="revive",
-        )
-    else:
-        state["score"] = int(state.get("score_bank", state["score"]))
-        state["completed"] = True
-        state["started"] = False
-        state["final_summary"] = _snake_strength_summary(state.get("all_fruits_eaten", []))
-        _save_finished_game(child_id, state, "snake", state.get("all_fruits_eaten", []))
+    state["completed"] = True
+    state["started"] = False
+    state["final_summary"] = _snake_strength_summary(state.get("all_fruits_eaten", []))
+    _save_finished_game(child_id, state, "snake", state.get("all_fruits_eaten", []))
     st.session_state["snake_game"] = state
     st.rerun()
 
 
-def _render_block_puzzle(child_id: str) -> None:
+def _render_block_puzzle(child: dict[str, Any]) -> None:
+    child_id = str(child["child_id"])
     state = st.session_state.get("block_puzzle_game")
     if not state:
-        state = new_block_game()
-        state["started"] = False
-        state["revivals_used"] = 0
-        state["completed"] = False
+        state = _new_block_state()
         st.session_state["block_puzzle_game"] = state
 
     st.markdown('<p class="kid-section-title">方塊消除：彩色積木挑戰</p>', unsafe_allow_html=True)
-    if state.get("completed"):
-        _render_final_summary(state, "block_puzzle")
-        if st.button("開始新一局方塊消除", icon=":material/restart_alt:", use_container_width=True):
-            state = new_block_game()
-            state["started"] = False
-            st.session_state["block_puzzle_game"] = state
-            st.rerun()
+    if state.get("game_over") or state.get("completed"):
+        _render_game_over_panel(state, "block_puzzle")
         return
 
     if not state.get("started"):
@@ -269,21 +274,18 @@ def _render_block_puzzle(child_id: str) -> None:
             """,
             unsafe_allow_html=True,
         )
+        _render_equipment_preview(child, "block_puzzle")
         if st.button("開始方塊消除", icon=":material/play_arrow:", use_container_width=True):
             if _spend_start_cost(child_id):
-                state = new_block_game()
-                state["started"] = True
-                state["revivals_used"] = 0
-                state["completed"] = False
-                st.session_state["block_puzzle_game"] = state
+                st.session_state["block_puzzle_game"] = _new_block_state(
+                    started=True,
+                    tokens_spent=GAME_START_COST,
+                    active_buff=get_game_buff_for_child(child, "block_puzzle"),
+                )
                 st.rerun()
         return
 
-    top_cols = st.columns(4)
-    top_cols[0].metric("分數", state["score"])
-    top_cols[1].metric("最高分", state.get("high_score", 0))
-    top_cols[2].metric("本局代幣", state.get("tokens_earned", 0))
-    top_cols[3].metric("玩法", "8 x 8")
+    _render_running_toolbar("block_puzzle", state)
 
     result = neon_block_puzzle_game(
         state,
@@ -293,6 +295,22 @@ def _render_block_puzzle(child_id: str) -> None:
     )
     _handle_block_token_event(child_id, state, _component_value(result, "token_award"))
     _handle_block_game_over(child_id, state, _component_value(result, "game_over"))
+
+
+def _new_block_state(
+    *,
+    started: bool = False,
+    tokens_spent: int = 0,
+    active_buff: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    state = new_block_game()
+    state["started"] = started
+    state["revivals_used"] = 0
+    state["completed"] = False
+    state["saved"] = False
+    state["tokens_spent"] = int(tokens_spent)
+    state["active_buff"] = active_buff or {}
+    return state
 
 
 def _handle_block_token_event(child_id: str, state: dict[str, Any], payload: Any) -> None:
@@ -321,19 +339,10 @@ def _handle_block_game_over(child_id: str, state: dict[str, Any], payload: Any) 
     state["placements"] = list(payload.get("placements") or [])
     state["game_over"] = True
     state["game_over_reason"] = str(payload.get("game_over_reason") or "no_valid_moves")
-    if int(state.get("revivals_used", 0)) < 1:
-        _queue_reflection(
-            game_type="block_puzzle",
-            score=int(state["score"]),
-            game_over_reason=state.get("game_over_reason") or "no_valid_moves",
-            game_id=state["game_id"],
-            purpose="revive",
-        )
-    else:
-        state["completed"] = True
-        state["started"] = False
-        state["final_summary"] = f"本局分數 {state['score']}，成功放置 {len(state.get('placements', []))} 次方塊。"
-        _save_finished_game(child_id, state, "block_puzzle", state.get("placements", []))
+    state["completed"] = True
+    state["started"] = False
+    state["final_summary"] = f"本局分數 {state['score']}，成功放置 {len(state.get('placements', []))} 次方塊。"
+    _save_finished_game(child_id, state, "block_puzzle", state.get("placements", []))
     st.session_state["block_puzzle_game"] = state
     st.rerun()
 
@@ -381,11 +390,12 @@ def _save_finished_game(
         finish_game(
             child_id,
             int(state.get("score", 0)),
-            events,
+            _events_with_buff(state, events),
             game_type=game_type,
             tokens_earned=int(state.get("tokens_earned", 0)),
             game_over_reason=str(state.get("game_over_reason", "")),
             game_id=state.get("game_id"),
+            tokens_spent=int(state.get("tokens_spent", GAME_START_COST)),
         )
     except DatabaseConnectionError as exc:
         st.error(str(exc))
@@ -400,7 +410,7 @@ def _queue_reflection(
     game_over_reason: str,
     game_id: str,
     summary: str = "",
-    purpose: str = "revive",
+    purpose: str = "replay",
 ) -> None:
     st.session_state["pending_reflection_question"] = {
         "student_id": st.session_state.get("child_id"),
@@ -423,26 +433,36 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
     st.warning(reason_label, icon=":material/sentiment_dissatisfied:")
     st.markdown(
         f"""
-        <div class="kid-card">
-            想復活一次，繼續挑戰「{escape(game_label)}」嗎？先回答一個小問題：<br>
+        <div class="game-over-card">
+            <strong>{escape(game_label)}再挑戰小問題</strong><br>
+            本次分數：{int(pending.get("score_before_game_over", 0))}。先寫一句自己的想法，就可以開始新一局。<br>
             <strong>{escape(str(pending["question"]))}</strong>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    if st.button("退出遊戲", icon=":material/logout:", key=f"exit_reflection_{pending['game_type']}", use_container_width=True):
+        _exit_game(str(pending["game_type"]))
+        st.rerun()
+
     with st.form(f"reflection_{pending['game_type']}_{pending['game_id']}", clear_on_submit=True):
         answer = st.text_area(
             "你的回答",
-            placeholder="至少 20 個字。可以說說你的感覺、剛剛怎麼輸的，或下一次想怎麼做。",
+            placeholder=REFLECTION_PLACEHOLDER,
             height=120,
         )
-        submitted = st.form_submit_button("送出回答，使用一次復活", use_container_width=True)
+        submitted = st.form_submit_button("送出回答，再玩一次", use_container_width=True)
 
     if not submitted:
-        st.caption("每局只能復活一次；回答至少 20 個字，而且要有具體想法。")
+        st.caption("回答不能空白；可以寫感覺、努力的地方，或下一次想用的策略。")
         return
 
     cleaned = answer.strip()
+    if not cleaned:
+        st.warning("先寫下一句想法，再開始新的挑戰。", icon=":material/edit_note:")
+        return
+
     validation = validate_reflection_answer(child, str(pending["question"]), cleaned)
     if not validation["is_valid"]:
         st.warning(validation.get("gentle_prompt") or "請再寫得更具體一點。")
@@ -462,25 +482,19 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
         return
 
     if pending["game_type"] == "snake":
-        old_state = st.session_state.get("snake_game") or {}
-        revived = _new_snake_state(started=True)
-        revived["revivals_used"] = int(old_state.get("revivals_used", 0)) + 1
-        revived["tokens_earned"] = int(old_state.get("tokens_earned", 0))
-        revived["awarded_thresholds"] = list(old_state.get("awarded_thresholds", []))
-        revived["all_fruits_eaten"] = list(old_state.get("all_fruits_eaten", []))
-        revived["score_bank"] = int(old_state.get("score_bank", 0))
-        st.session_state["snake_game"] = revived
+        st.session_state["snake_game"] = _new_snake_state(
+            started=True,
+            tokens_spent=0,
+            active_buff=get_game_buff_for_child(child, "snake"),
+        )
     else:
-        old_state = st.session_state.get("block_puzzle_game") or {}
-        revived = new_block_game()
-        revived["started"] = True
-        revived["revivals_used"] = int(old_state.get("revivals_used", 0)) + 1
-        revived["tokens_earned"] = int(old_state.get("tokens_earned", 0))
-        revived["awarded_thresholds"] = list(old_state.get("awarded_thresholds", []))
-        revived["high_score"] = int(old_state.get("high_score", 0))
-        st.session_state["block_puzzle_game"] = revived
+        st.session_state["block_puzzle_game"] = _new_block_state(
+            started=True,
+            tokens_spent=0,
+            active_buff=get_game_buff_for_child(child, "block_puzzle"),
+        )
     st.session_state["pending_reflection_question"] = None
-    st.success("回答已保存，這是本局唯一一次復活機會。")
+    st.success("回答已保存，新的挑戰開始囉。")
     st.rerun()
 
 
@@ -511,19 +525,163 @@ def _metric_score(key: str) -> str:
     return f"{score} 分 / +{tokens}"
 
 
-def _render_final_summary(state: dict[str, Any], game_type: str) -> None:
-    title = "本局完整結束" if game_type == "snake" else "方塊挑戰結束"
-    summary = state.get("final_summary") or "這一局已經結束，可以換遊戲或重新開始。"
+def _render_equipment_preview(child: dict[str, Any], game_type: str) -> None:
+    outfit = get_selected_outfit_profile(child)
+    buff = get_game_buff_for_child(child, game_type)
+    applies_tag = "會在本局生效" if buff.get("applies") else "本局只作為外觀"
     st.markdown(
         f"""
-        <div class="kid-card">
-            <strong>{escape(title)}</strong><br>
-            分數：{int(state.get("score", 0))}｜本局代幣：+{int(state.get("tokens_earned", 0))}<br>
+        <div class="equipment-preview-card">
+            {outfit_visual_html(outfit, "is-small")}
+            <div>
+                <strong>目前裝備：{escape(str(outfit.get("display_name") or "尚未選擇"))}</strong>
+                <p>{escape(str(outfit.get("short_description") or "可以到角色頁選一件裝備。"))}</p>
+                <p class="gear-buff-line">
+                    {escape(str(buff.get("buff_label") or "本遊戲沒有加成"))}｜{escape(applies_tag)}
+                </p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _buff_status_label(buff: Any) -> str:
+    if not isinstance(buff, dict) or not buff:
+        return "尚未開始"
+    if not buff.get("applies"):
+        return "本遊戲沒有加成"
+    return f"{buff.get('buff_label') or '裝備加成'}（已套用）"
+
+
+def _events_with_buff(state: dict[str, Any], events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    buff = state.get("active_buff")
+    if not isinstance(buff, dict) or not buff.get("applies"):
+        return list(events)
+    return [
+        {
+            "event_type": "outfit_buff",
+            "outfit_id": buff.get("outfit_id", ""),
+            "outfit_name": buff.get("outfit_name", ""),
+            "buff_type": buff.get("buff_type", ""),
+            "buff_value": buff.get("buff_value", 0),
+            "buff_label": buff.get("buff_label", ""),
+            "target_game": buff.get("target_game", ""),
+        },
+        *list(events),
+    ]
+
+
+def _render_running_toolbar(game_type: str, state: dict[str, Any]) -> None:
+    cols = st.columns([3, 2, 1], vertical_alignment="center")
+    with cols[0]:
+        st.caption("遊戲進行中；不想繼續時可以直接退出，會回到遊戲入口。")
+    with cols[1]:
+        st.markdown(
+            f'<span class="gear-buff-pill">本局加成：<strong>{escape(_buff_status_label(state.get("active_buff")))}</strong></span>',
+            unsafe_allow_html=True,
+        )
+    with cols[2]:
+        if st.button(
+            "退出遊戲",
+            icon=":material/logout:",
+            key=f"exit_running_{game_type}",
+            use_container_width=True,
+        ):
+            _exit_game(game_type)
+            st.rerun()
+
+
+def _render_game_over_panel(state: dict[str, Any], game_type: str) -> None:
+    game_label = GAME_LABELS.get(game_type, "遊戲")
+    reason = str(state.get("game_over_reason") or _default_game_over_reason(game_type))
+    reason_label = GAME_OVER_LABELS.get(reason, "這一局結束了！")
+    summary = state.get("final_summary") or "這一局已經結束，可以選擇退出，或先回答一個小問題再挑戰。"
+    buff_label = _buff_status_label(state.get("active_buff"))
+    st.markdown(
+        f"""
+        <div class="game-over-card">
+            <strong>{escape(game_label)}結束</strong><br>
+            原因：{escape(reason_label)}<br>
+            本次分數：{int(state.get("score", 0))}｜本次獲得代幣：+{int(state.get("tokens_earned", 0))}<br>
+            本局加成：{escape(buff_label)}<br>
             {escape(str(summary))}
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    col_exit, col_replay = st.columns(2)
+    with col_exit:
+        if st.button(
+            "退出遊戲",
+            icon=":material/logout:",
+            key=f"exit_over_{game_type}_{state.get('game_id', '')}",
+            use_container_width=True,
+        ):
+            _exit_game(game_type)
+            st.rerun()
+    with col_replay:
+        if st.button(
+            "再玩一次",
+            icon=":material/restart_alt:",
+            key=f"replay_{game_type}_{state.get('game_id', '')}",
+            use_container_width=True,
+        ):
+            _queue_reflection(
+                game_type=game_type,
+                score=int(state.get("score", 0)),
+                game_over_reason=reason,
+                game_id=str(state.get("game_id") or new_game_id()),
+                summary=str(summary),
+                purpose="replay",
+            )
+            st.rerun()
+
+
+def _render_game_status(child: dict[str, Any], current_game: str) -> None:
+    state_key = "snake_game" if current_game == "snake" else "block_puzzle_game"
+    state = st.session_state.get(state_key) or {}
+    threshold = SNAKE_TOKEN_THRESHOLD if current_game == "snake" else BLOCK_TOKEN_THRESHOLD
+    st.markdown(
+        f"""
+        <div class="game-status-strip">
+            <span>目前代幣：<strong>{int(child.get("tokens", 0))}</strong></span>
+            <span>{escape(GAME_LABELS.get(current_game, "遊戲"))}本局：<strong>{escape(_metric_score(state_key))}</strong></span>
+            <span>裝備加成：<strong>{escape(_buff_status_label(state.get("active_buff")))}</strong></span>
+            <span>每 {threshold} 分 +1 代幣，單局最多 +{MAX_GAME_TOKENS_PER_ROUND}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _exit_game(game_type: str) -> None:
+    _reset_game_state(game_type)
+    st.session_state["game_exit_notice"] = "已退出遊戲，回到遊戲入口。"
+
+
+def _reset_game_state(game_type: str) -> None:
+    if game_type == "snake":
+        old_state = st.session_state.get("snake_game") or {}
+        game_id = old_state.get("game_id")
+        if game_id:
+            st.session_state.pop(f"slither_{game_id}", None)
+        st.session_state["snake_game"] = _new_snake_state()
+    else:
+        old_state = st.session_state.get("block_puzzle_game") or {}
+        game_id = old_state.get("game_id")
+        if game_id:
+            st.session_state.pop(f"block_neon_{game_id}", None)
+        st.session_state["block_puzzle_game"] = _new_block_state()
+
+    pending = st.session_state.get("pending_reflection_question")
+    if pending and pending.get("game_type") == game_type:
+        st.session_state["pending_reflection_question"] = None
+
+
+def _default_game_over_reason(game_type: str) -> str:
+    return "no_valid_moves" if game_type == "block_puzzle" else "hit_wall"
 
 
 def _snake_strength_summary(fruits_eaten: list[dict[str, Any]]) -> str:

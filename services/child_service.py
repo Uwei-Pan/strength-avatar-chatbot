@@ -49,9 +49,20 @@ def hydrate_child(child: dict[str, Any]) -> dict[str, Any]:
 def get_child_outfits(child_id: str) -> list[dict[str, Any]]:
     return fetch_all(
         """
-        SELECT o.outfit_id, o.name, o.display_name, o.cost, co.unlocked_source
+        SELECT
+            o.outfit_id,
+            o.name,
+            o.display_name,
+            o.cost,
+            co.unlocked_source,
+            s.strength_id AS related_strength_id,
+            s.name_zh AS strength_name,
+            s.category,
+            s.description AS strength_description,
+            s.suggestion AS strength_suggestion
         FROM child_outfits co
         JOIN outfits o ON o.outfit_id = co.outfit_id
+        LEFT JOIN strengths s ON s.strength_id = o.related_strength_id
         WHERE co.child_id = %s
         ORDER BY o.display_name
         """,

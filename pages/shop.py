@@ -1,6 +1,9 @@
+from html import escape
+
 import streamlit as st
 
 from database.db_connection import DatabaseConnectionError
+from services.avatar_assets import get_outfit_profile, outfit_visual_html
 from services.child_service import get_child
 from services.shop_service import list_shop_outfits, purchase_outfit
 from services.token_service import InsufficientTokensError
@@ -39,33 +42,67 @@ def render() -> None:
         if not available:
             st.info("目前所有服裝都已解鎖。")
         for outfit in available:
-            with st.container(border=True):
-                cols = st.columns([4, 1, 1])
-                with cols[0]:
-                    st.write(f"**{outfit['display_name']}**")
-                    detail = "可以讓角色換上新的樣子"
-                    if outfit.get("strength_name"):
-                        detail = f"相關優勢：{outfit['strength_name']}"
-                    st.caption(detail)
-                with cols[1]:
-                    st.metric("價格", int(outfit["cost"]))
-                with cols[2]:
-                    if st.button("購買", key=f"buy_{outfit['outfit_id']}", use_container_width=True):
-                        try:
-                            purchase_outfit(child_id, outfit["outfit_id"])
-                        except (DatabaseConnectionError, InsufficientTokensError, ValueError) as exc:
-                            st.error(str(exc))
-                        else:
-                            st.success("購買成功，已解鎖服裝。")
-                            st.rerun()
+            _render_shop_item(child_id, outfit)
 
     with tab_owned:
         if not owned:
             st.info("目前還沒有服裝。")
         for outfit in owned:
-            with st.container(border=True):
-                st.write(f"**{outfit['display_name']}**")
-                caption = "已經可以在角色頁使用"
-                if outfit.get("strength_name"):
-                    caption = f"相關優勢：{outfit['strength_name']}"
-                st.caption(caption)
+            _render_owned_item(outfit, equipped=outfit.get("outfit_id") == child.get("selected_outfit"))
+
+
+def _render_shop_item(child_id: str, outfit: dict) -> None:
+    profile = get_outfit_profile(outfit)
+    strength = profile.get("strength_name") or "自由搭配"
+    buff = profile.get("buff") or {}
+    with st.container(border=True):
+        cols = st.columns([4, 1])
+        with cols[0]:
+            st.markdown(
+                f"""
+                <div class="shop-item-inline">
+                    {outfit_visual_html(profile, "is-small")}
+                    <div>
+                        <strong>{escape(str(profile["display_name"]))}</strong>
+                        <p>{escape(str(profile["short_description"]))}</p>
+                        <p class="gear-buff-line">{escape(str(buff.get("buff_label") or "外觀裝備"))}</p>
+                        <span class="kid-tag {escape(str(profile["accent"]))}">優勢：{escape(str(strength))}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with cols[1]:
+            st.metric("價格", int(outfit["cost"]))
+            if st.button("購買", key=f"buy_{outfit['outfit_id']}", use_container_width=True):
+                try:
+                    purchase_outfit(child_id, outfit["outfit_id"])
+                except (DatabaseConnectionError, InsufficientTokensError, ValueError) as exc:
+                    st.error(str(exc))
+                else:
+                    st.success("購買成功，已解鎖服裝。")
+                    st.rerun()
+
+
+def _render_owned_item(outfit: dict, *, equipped: bool = False) -> None:
+    profile = get_outfit_profile(outfit)
+    strength = profile.get("strength_name") or "自由搭配"
+    buff = profile.get("buff") or {}
+    equipped_class = " is-equipped" if equipped else ""
+    with st.container(border=True):
+        st.markdown(
+            f"""
+            <div class="shop-item-inline{equipped_class}">
+                {outfit_visual_html(profile, "is-small")}
+                <div>
+                    <strong>{escape(str(profile["display_name"]))}</strong>
+                    <p>{escape(str(profile["short_description"]))}</p>
+                    <p class="gear-buff-line">{escape(str(buff.get("buff_label") or "外觀裝備"))}</p>
+                    <span class="kid-tag {escape(str(profile["accent"]))}">優勢：{escape(str(strength))}</span>
+                    <span class="kid-tag chip-b">已經可以在角色頁使用</span>
+                    {('<span class="kid-tag chip-a">目前裝備中</span>' if equipped else '')}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )

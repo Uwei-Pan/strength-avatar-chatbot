@@ -6,10 +6,13 @@ import streamlit as st
 
 HTML = """
 <div class="block-neon-shell">
+  <div id="notice" class="block-notice">選擇下方方塊，再點棋盤放置。</div>
+  <div id="buff" class="block-buff"></div>
+  <div id="board" class="block-board" aria-label="方塊消除棋盤"></div>
   <div class="block-neon-top">
     <button class="block-menu" type="button" aria-label="Menu">
       <span class="block-menu-icon"><i></i><i></i><i></i><i></i></span>
-      <strong>MENU</strong>
+      <strong>8×8</strong>
     </button>
     <div class="block-score-card">
       <span>皇冠分數</span>
@@ -19,12 +22,6 @@ HTML = """
       <span class="block-coin">★</span>
       <strong id="tokens">0</strong>
     </div>
-  </div>
-  <div id="notice" class="block-notice">選擇下方方塊，再點棋盤放置。</div>
-  <div id="board" class="block-board" aria-label="方塊消除棋盤"></div>
-  <div class="block-tool-row">
-    <div class="block-tool"><span>↔</span><strong>2</strong></div>
-    <div class="block-tool"><span>⟳</span><strong>2</strong></div>
   </div>
   <div class="block-tray">
     <div id="pieces" class="block-pieces"></div>
@@ -53,7 +50,7 @@ CSS = """
   grid-template-columns: 1fr 1.5fr 1fr;
   gap: 14px;
   align-items: center;
-  margin-bottom: 18px;
+  margin: 14px 0 18px;
 }
 
 .block-menu,
@@ -141,10 +138,25 @@ CSS = """
 
 .block-notice {
   min-height: 24px;
-  margin: 0 4px 10px;
+  margin: 0 4px 8px;
   color: #d9a8e7;
   font-size: 14px;
   font-weight: 800;
+}
+
+.block-buff {
+  min-height: 28px;
+  margin: 0 4px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #ffe28a;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .block-board {
@@ -320,13 +332,16 @@ export default function (component) {
 }
 
 function createState(gameId, data) {
+  const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.2)
   return {
     gameId,
     board: Array.from({ length: size }, () => Array.from({ length: size }, () => null)),
     // null = 已用完，等補充；非 null = 可用
     pieces: [newPiece(), newPiece(), newPiece()],
     selected: 0,
-    score: 0,
+    score: Math.max(0, Math.round(Number(data?.bonus_start_score ?? 0))),
+    scoreMultiplier,
+    buffLabel: data?.buff_label ?? "",
     highScore: Number(data?.high_score ?? 0),
     serverTokens: Number(data?.tokens_earned ?? 0),
     localTokens: 0,
@@ -341,6 +356,7 @@ function render(root, state, setTriggerValue) {
   root.querySelector("#score").textContent = String(state.score)
   root.querySelector("#tokens").textContent = String(state.serverTokens + state.localTokens)
   root.querySelector("#notice").textContent = state.notice
+  root.querySelector("#buff").textContent = state.buffLabel ? `本局裝備加成：${state.buffLabel}` : "本局沒有裝備加成"
 
   const board = root.querySelector("#board")
   board.innerHTML = ""
@@ -405,7 +421,9 @@ function place(state, row, col, setTriggerValue, root) {
   const placedScore = piece.cells.length * 10
   const lineScore = cleared * 50
   const combo = Math.max(0, cleared - 1) * 25
-  state.score += placedScore + lineScore + combo
+  const baseScore = placedScore + lineScore + combo
+  const earnedScore = addScore(state, baseScore)
+  state.score += earnedScore
   state.highScore = Math.max(state.highScore, state.score)
   state.placements.push({
     piece_name: piece.name,
@@ -413,6 +431,8 @@ function place(state, row, col, setTriggerValue, root) {
     row,
     col,
     score_after: state.score,
+    base_score: baseScore,
+    score_earned: earnedScore,
     cleared_lines: cleared,
   })
 
@@ -424,13 +444,13 @@ function place(state, row, col, setTriggerValue, root) {
     state.pieces = [newPiece(), newPiece(), newPiece()]
     state.selected = 0
     state.notice = cleared
-      ? `消除 ${cleared} 條線！三個方塊用完，補充新的三個。`
+      ? `消除 ${cleared} 條線，得到 ${earnedScore} 分！三個方塊用完，補充新的三個。`
       : `三個方塊都用完了，補充新的三個！`
   } else {
     // 自動選下一個可用的方塊
     const next = state.pieces.findIndex(p => p !== null)
     if (next !== -1) state.selected = next
-    state.notice = cleared ? `消除 ${cleared} 條線！` : `放好了，+${placedScore} 分。`
+    state.notice = cleared ? `消除 ${cleared} 條線，得到 ${earnedScore} 分！` : `放好了，+${earnedScore} 分。`
   }
 
   maybeAwardToken(state, setTriggerValue)
@@ -464,6 +484,10 @@ function maybeAwardToken(state, setTriggerValue) {
     threshold,
     score: state.score,
   })
+}
+
+function addScore(state, basePoints) {
+  return Math.max(1, Math.round(Number(basePoints) * state.scoreMultiplier))
 }
 
 function newPiece() {
@@ -547,6 +571,11 @@ function pieceGrid(piece) {
   }
   return grid
 }
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min
+  return Math.max(min, Math.min(max, value))
+}
 """
 
 
@@ -569,6 +598,7 @@ def neon_block_puzzle_game(
         on_game_over_change = lambda: None
     if on_token_award_change is None:
         on_token_award_change = lambda: None
+    buff = state.get("active_buff") or {}
 
     return _BLOCK_COMPONENT(
         key=key,
@@ -577,6 +607,9 @@ def neon_block_puzzle_game(
             "high_score": int(state.get("high_score", 0)),
             "tokens_earned": int(state.get("tokens_earned", 0)),
             "awarded_thresholds": state.get("awarded_thresholds", []),
+            "score_multiplier": float(buff.get("score_multiplier") or 1.0),
+            "bonus_start_score": int(buff.get("bonus_start_score") or 0),
+            "buff_label": buff.get("buff_label") if buff.get("applies") else "",
         },
         on_game_over_change=on_game_over_change,
         on_token_award_change=on_token_award_change,
