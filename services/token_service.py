@@ -44,7 +44,7 @@ def _change_tokens(child_id: str, amount: int, reason: str) -> int:
                     raise ValueError("找不到 child，無法異動 token。")
                 new_balance = int(row["tokens"]) + amount
                 if new_balance < 0:
-                    raise InsufficientTokensError("代幣不足，不能進行這個操作。")
+                    raise InsufficientTokensError("代幣還不夠，先完成一個小任務或聊聊今天的故事再試一次。")
 
                 cursor.execute(
                     "UPDATE children SET tokens = %s WHERE child_id = %s",

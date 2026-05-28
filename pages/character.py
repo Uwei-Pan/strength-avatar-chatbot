@@ -37,6 +37,7 @@ def render() -> None:
     )
     current_character = get_character_profile(child.get("selected_character"))
     current_outfit = get_selected_outfit_profile(child)
+    current_ability = current_character.get("ability") or {}
     st.markdown(
         f"""
         <div class="avatar-profile-card">
@@ -45,6 +46,7 @@ def render() -> None:
                 <span class="kid-tag {escape(current_character["accent"])}">目前角色</span>
                 <h3>{escape(current_character["display_name"])}｜{escape(current_character["title"])}</h3>
                 <p>{escape(current_character["description"])}</p>
+                <p class="gear-buff-line">角色助力：{escape(str(current_ability.get("ability_name") or "穩穩陪伴"))}｜{escape(str(current_ability.get("ability_description") or "角色會陪你一起完成挑戰。"))}</p>
                 <div class="equipment-preview-card">
                     {outfit_visual_html(current_outfit, "is-small")}
                     <div>
@@ -67,6 +69,7 @@ def render() -> None:
         for index, profile in enumerate(row_profiles):
             with character_cols[index]:
                 disabled = child["selected_character"] == profile["key"]
+                ability = profile.get("ability") or {}
                 st.markdown(
                     f"""
                     <div class="character-card">
@@ -74,6 +77,8 @@ def render() -> None:
                         <strong>{escape(profile["display_name"])}</strong>
                         <span>{escape(profile["title"])}</span>
                         <p>{escape(profile["description"])}</p>
+                        <p class="gear-buff-line">{escape(str(ability.get("ability_name") or "穩穩陪伴"))}</p>
+                        <p>{escape(str(ability.get("ability_description") or "角色會陪你一起完成挑戰。"))}</p>
                     </div>
                     """,
                     unsafe_allow_html=True,

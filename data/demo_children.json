@@ -5,7 +5,7 @@
       "username": "studentB",
       "password": "1234",
       "name": "B生",
-      "tokens": 100,
+      "tokens": 1000000,
       "selected_character": "fox",
       "selected_outfit": "perseverance_boots",
       "owned_strengths": [
@@ -58,7 +58,7 @@
       "username": "studentC",
       "password": "1234",
       "name": "C生",
-      "tokens": 100,
+      "tokens": 1000000,
       "selected_character": "cat",
       "selected_outfit": "self_regulation_shield",
       "owned_strengths": [
@@ -111,7 +111,7 @@
       "username": "studentD",
       "password": "1234",
       "name": "D生",
-      "tokens": 100,
+      "tokens": 1000000,
       "selected_character": "rabbit",
       "selected_outfit": "hope_compass",
       "owned_strengths": [
@@ -126,7 +126,7 @@
           "strength_name": "勤奮",
           "category": "勇氣",
           "source": "counseling_record",
-          "evidence": "面對課業壓力、模擬考與較多作業時，仍能持續完成任務，甚至利用休息時間加強地理與其他弱項。",
+          "evidence": "面對課業壓力、模擬考與較多作業時，仍能持續完成任務，甚至利用休息時間加強地理與其他想更熟悉的單元。",
           "outfit_reward": "perseverance_boots"
         },
         {

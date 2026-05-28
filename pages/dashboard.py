@@ -50,6 +50,7 @@ def render() -> None:
     )
     character = get_character_profile(child.get("selected_character"))
     outfit = get_selected_outfit_profile(child)
+    ability = character.get("ability") or {}
     col1, col2, col3 = st.columns(3)
     col1.metric("代幣", child["tokens"])
     col2.metric("角色", character["display_name"])
@@ -63,6 +64,7 @@ def render() -> None:
                 <span class="kid-tag {escape(character["accent"])}">{escape(character["title"])}</span>
                 <h3>{escape(character["display_name"])}穿著{escape(outfit["display_name"])}</h3>
                 <p>{escape(character["description"])}</p>
+                <p class="gear-buff-line">角色助力：{escape(str(ability.get("ability_name") or "穩穩陪伴"))}｜{escape(str(ability.get("ability_description") or "角色會陪你一起完成挑戰。"))}</p>
                 <div class="equipment-preview-card">
                     {outfit_visual_html(outfit, "is-small")}
                     <div>
@@ -78,7 +80,7 @@ def render() -> None:
     )
 
     st.markdown('<p class="kid-section-title">已擁有的優勢</p>', unsafe_allow_html=True)
-    st.caption("依據 VIA 24 項品格優勢架構整理，但不是正式心理測驗結果；這裡呈現的是平台與輔導情境中的優勢觀察。")
+    st.caption("這裡收藏你曾經展現過的亮點，每一次分享都會讓我們更認識你的成長。")
     unique_strengths = {}
     for item in child["owned_strengths"]:
         unique_strengths[item["name_zh"]] = item
@@ -86,12 +88,22 @@ def render() -> None:
     if unique_strengths:
         _render_strength_tags(list(unique_strengths))
         for strength in unique_strengths.values():
-            with st.expander(f"{strength['name_zh']}｜{strength['category']}"):
-                st.write(strength["evidence_text"])
-                confidence = float(strength.get("confidence") or 0)
-                confidence_level = "high" if confidence >= 0.8 else "medium" if confidence >= 0.55 else "low"
+            st.markdown(
+                f"""
+                <div class="growth-story-card">
+                    <strong>{escape(str(strength["name_zh"]))}</strong>
+                    <p>你正在展現這個亮點，這是一段很棒的成長足跡。</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.expander(f"看看我的成長小故事｜{strength['name_zh']}"):
                 source_label = SOURCE_LABELS.get(str(strength.get("source")), str(strength.get("source") or "其他"))
-                st.caption(f"來源：{source_label}｜信心程度：{confidence_level}")
+                if strength.get("evidence_text"):
+                    st.write(strength["evidence_text"])
+                else:
+                    st.write("這個亮點正在慢慢累積更多故事。")
+                st.caption(f"來源：{source_label}")
     else:
         st.info("還沒有儲存的優勢紀錄。")
 

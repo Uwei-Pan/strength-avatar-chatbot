@@ -20,7 +20,7 @@ CHARACTER_CATALOG: dict[str, dict[str, str]] = {
         "display_name": "橘糖",
         "emoji": "🦊",
         "title": "靈巧探路員",
-        "description": "喜歡觀察路線，適合練習好奇心、判斷力和勇敢。",
+        "description": "喜歡觀察路線，適合練習好奇心、想清楚再行動和勇敢。",
         "accent": "chip-f",
     },
     "rabbit": {
@@ -69,9 +69,162 @@ CHARACTER_CATALOG: dict[str, dict[str, str]] = {
         "display_name": "藍晴",
         "emoji": "🔧",
         "title": "點子製造員",
-        "description": "把想法變成小實驗，適合練習創造力、判斷力和熱誠。",
+        "description": "把想法變成小實驗，適合練習創造力、想清楚再行動和熱誠。",
         "accent": "chip-c",
     },
+}
+
+CHARACTER_ABILITIES: dict[str, dict[str, Any]] = {
+    "fox": {
+        "ability_name": "橘光探路",
+        "ability_description": "橘糖會陪你把速度放穩，讓每一步比較好掌握。",
+        "game_effects": {
+            "snake": {
+                "type": "speed_multiplier",
+                "value": 0.94,
+                "label": "貪食蛇速度放慢 6%",
+                "description": "橘糖正在幫你穩穩前進。",
+            },
+            "block_puzzle": {
+                "type": "score_multiplier",
+                "value": 1.03,
+                "label": "方塊消除分數 +3%",
+                "description": "橘糖幫你多看一眼路線，放方塊時多一點鼓勵分。",
+            },
+        },
+    },
+    "rabbit": {
+        "ability_name": "粉桃跳跳",
+        "ability_description": "粉桃會把每一次小嘗試變得更有活力。",
+        "game_effects": {
+            "snake": {
+                "type": "score_multiplier",
+                "value": 1.06,
+                "label": "貪食蛇分數 +6%",
+                "description": "粉桃幫你把吃到的點心變成更多能量。",
+            },
+            "block_puzzle": {
+                "type": "score_multiplier",
+                "value": 1.04,
+                "label": "方塊消除分數 +4%",
+                "description": "粉桃陪你把每次放置都累積成小成果。",
+            },
+        },
+    },
+    "bear": {
+        "ability_name": "可可守護",
+        "ability_description": "可可會在關鍵時刻保護你一次，讓你有機會調整呼吸。",
+        "game_effects": {
+            "snake": {
+                "type": "shield",
+                "value": 1,
+                "label": "貪食蛇首次撞到時保護 1 次",
+                "description": "可可可以守護你一次，讓你回到畫面中間繼續挑戰。",
+            },
+            "block_puzzle": {
+                "type": "rescue_chance",
+                "value": 1,
+                "label": "方塊消除卡住時換牌 1 次",
+                "description": "可可會在沒位置時幫你換一組方塊。",
+            },
+        },
+    },
+    "owl": {
+        "ability_name": "紫莓觀星",
+        "ability_description": "紫莓會幫你發現更多機會，慢慢看見下一步。",
+        "game_effects": {
+            "snake": {
+                "type": "strength_fruit_bonus",
+                "value": 8,
+                "label": "優勢果實額外 +8 分",
+                "description": "紫莓讓大顆優勢果實更亮一點。",
+            },
+            "block_puzzle": {
+                "type": "bonus_start_score",
+                "value": 12,
+                "label": "方塊消除開局 +12 分",
+                "description": "紫莓先幫你點亮一個好開始。",
+            },
+        },
+    },
+    "deer": {
+        "ability_name": "麥芽穩步",
+        "ability_description": "麥芽會陪你慢慢轉向，讓節奏更柔和。",
+        "game_effects": {
+            "snake": {
+                "type": "turn_rate",
+                "value": 0.075,
+                "label": "貪食蛇轉向更柔和",
+                "description": "麥芽讓快速轉向變得更穩。",
+            },
+            "block_puzzle": {
+                "type": "bonus_start_score",
+                "value": 10,
+                "label": "方塊消除開局 +10 分",
+                "description": "麥芽陪你用穩定步伐開局。",
+            },
+        },
+    },
+    "turtle": {
+        "ability_name": "綠芽慢慢走",
+        "ability_description": "綠芽會把節奏放慢，陪你用自己的速度完成挑戰。",
+        "game_effects": {
+            "snake": {
+                "type": "speed_multiplier",
+                "value": 0.86,
+                "label": "貪食蛇速度放慢 14%",
+                "description": "綠芽讓你有更多時間看清楚方向。",
+            },
+            "block_puzzle": {
+                "type": "rescue_chance",
+                "value": 1,
+                "label": "方塊消除卡住時換牌 1 次",
+                "description": "綠芽陪你慢慢再試一組方塊。",
+            },
+        },
+    },
+    "cat": {
+        "ability_name": "蜜糖靜觀",
+        "ability_description": "蜜糖會陪你安靜觀察，把小選擇慢慢變成好成果。",
+        "game_effects": {
+            "snake": {
+                "type": "score_multiplier",
+                "value": 1.04,
+                "label": "貪食蛇分數 +4%",
+                "description": "蜜糖把你的穩定收集化成多一點分數。",
+            },
+            "block_puzzle": {
+                "type": "score_multiplier",
+                "value": 1.05,
+                "label": "方塊消除分數 +5%",
+                "description": "蜜糖陪你把每一次觀察變成小收穫。",
+            },
+        },
+    },
+    "inventor": {
+        "ability_name": "藍晴點子",
+        "ability_description": "藍晴會把新點子變成遊戲中的小能量。",
+        "game_effects": {
+            "snake": {
+                "type": "strength_fruit_bonus",
+                "value": 10,
+                "label": "優勢果實額外 +10 分",
+                "description": "藍晴讓大顆優勢果實更有驚喜。",
+            },
+            "block_puzzle": {
+                "type": "score_multiplier",
+                "value": 1.06,
+                "label": "方塊消除分數 +6%",
+                "description": "藍晴把新放法變成更多鼓勵分。",
+            },
+        },
+    },
+}
+
+FALLBACK_ABILITY = {
+    "ability_name": "穩穩陪伴",
+    "ability_description": "角色會陪你一起完成挑戰。",
+    "game_effects": {},
 }
 
 OUTFIT_CATALOG: dict[str, dict[str, str | None]] = {
@@ -385,19 +538,36 @@ FALLBACK_BUFF = {
     "buff_type": "none",
     "target_game": "none",
     "buff_value": 0,
-    "buff_label": "本遊戲沒有加成",
+    "buff_label": "本遊戲沒有額外助力",
     "buff_description": "這件裝備目前只作為外觀展示，不會影響本局分數。",
 }
 
 
-def get_character_profile(character_key: str | None) -> dict[str, str]:
-    key = character_key or DEFAULT_CHARACTER
+def get_character_profile(character_key: str | None) -> dict[str, Any]:
+    key = character_key if character_key in CHARACTER_CATALOG else DEFAULT_CHARACTER
     profile = CHARACTER_CATALOG.get(key, CHARACTER_CATALOG[DEFAULT_CHARACTER])
-    return {"key": key, **profile}
+    ability = get_character_ability(key)
+    return {
+        "key": key,
+        **profile,
+        "ability": ability,
+        "ability_name": ability.get("ability_name", FALLBACK_ABILITY["ability_name"]),
+        "ability_description": ability.get("ability_description", FALLBACK_ABILITY["ability_description"]),
+    }
 
 
-def list_character_profiles() -> list[dict[str, str]]:
+def list_character_profiles() -> list[dict[str, Any]]:
     return [get_character_profile(character_key) for character_key in CHARACTER_OPTIONS]
+
+
+def get_character_ability(character_key: str | None) -> dict[str, Any]:
+    key = character_key if character_key in CHARACTER_ABILITIES else DEFAULT_CHARACTER
+    ability = CHARACTER_ABILITIES.get(key, FALLBACK_ABILITY)
+    return {
+        "ability_name": ability.get("ability_name", FALLBACK_ABILITY["ability_name"]),
+        "ability_description": ability.get("ability_description", FALLBACK_ABILITY["ability_description"]),
+        "game_effects": dict(ability.get("game_effects") or {}),
+    }
 
 
 def get_outfit_profile(outfit: dict[str, Any] | str | None) -> dict[str, Any]:
@@ -459,6 +629,108 @@ def get_game_buff_for_child(child: dict[str, Any], game_type: str) -> dict[str, 
     return normalize_game_buff(outfit, game_type)
 
 
+def get_character_game_modifier(child: dict[str, Any], game_type: str) -> dict[str, Any]:
+    character = get_character_profile(child.get("selected_character"))
+    ability = character.get("ability") or FALLBACK_ABILITY
+    effects = ability.get("game_effects") or {}
+    effect = dict(effects.get(game_type) or {})
+    effect_type = str(effect.get("type") or "none")
+    raw_value = float(effect.get("value") or 0)
+    modifier = _empty_game_modifier(game_type)
+    modifier.update(
+        {
+            "kind": "character",
+            "character_key": character.get("key", DEFAULT_CHARACTER),
+            "character_name": character.get("display_name", "角色"),
+            "ability_name": ability.get("ability_name", FALLBACK_ABILITY["ability_name"]),
+            "ability_description": ability.get("ability_description", FALLBACK_ABILITY["ability_description"]),
+            "effect_type": effect_type,
+            "effect_value": raw_value,
+            "label": effect.get("label") or "角色陪你一起挑戰",
+            "description": effect.get("description") or ability.get("ability_description", FALLBACK_ABILITY["ability_description"]),
+            "applies": effect_type != "none",
+        }
+    )
+    if effect_type == "score_multiplier":
+        modifier["score_multiplier"] = max(1.0, min(raw_value, 1.12))
+    elif effect_type == "speed_multiplier":
+        modifier["speed_multiplier"] = max(0.84, min(raw_value, 1.05))
+    elif effect_type == "bonus_start_score":
+        modifier["bonus_start_score"] = max(0, min(int(raw_value), 40))
+    elif effect_type == "shield":
+        modifier["shield_charges"] = max(0, min(int(raw_value), 1))
+    elif effect_type == "rescue_chance":
+        modifier["rescue_chances"] = max(0, min(int(raw_value), 1))
+    elif effect_type == "turn_rate":
+        modifier["turn_rate"] = max(0.065, min(raw_value, 0.09))
+    elif effect_type == "strength_fruit_bonus":
+        modifier["strength_fruit_bonus"] = max(0, min(int(raw_value), 15))
+    return modifier
+
+
+def get_active_game_modifiers(child: dict[str, Any], game_type: str) -> dict[str, Any]:
+    outfit_buff = get_game_buff_for_child(child, game_type)
+    character_modifier = get_character_game_modifier(child, game_type)
+    score_multiplier = max(
+        1.0,
+        min(
+            float(outfit_buff.get("score_multiplier") or 1.0)
+            * float(character_modifier.get("score_multiplier") or 1.0),
+            1.25,
+        ),
+    )
+    speed_multiplier = max(
+        0.78,
+        min(
+            float(outfit_buff.get("speed_multiplier") or 1.0)
+            * float(character_modifier.get("speed_multiplier") or 1.0),
+            1.08,
+        ),
+    )
+    bonus_start_score = max(
+        0,
+        min(
+            int(outfit_buff.get("bonus_start_score") or 0)
+            + int(character_modifier.get("bonus_start_score") or 0),
+            80,
+        ),
+    )
+    labels = []
+    if character_modifier.get("applies"):
+        labels.append(f"角色：{character_modifier.get('label')}")
+    if outfit_buff.get("applies"):
+        labels.append(f"服裝：{outfit_buff.get('buff_label')}")
+    return {
+        "game_type": game_type,
+        "score_multiplier": score_multiplier,
+        "speed_multiplier": speed_multiplier,
+        "bonus_start_score": bonus_start_score,
+        "shield_charges": int(character_modifier.get("shield_charges") or 0),
+        "rescue_chances": int(character_modifier.get("rescue_chances") or 0),
+        "turn_rate": float(character_modifier.get("turn_rate") or 0.09),
+        "strength_fruit_bonus": int(character_modifier.get("strength_fruit_bonus") or 0),
+        "outfit": outfit_buff,
+        "character": character_modifier,
+        "active_labels": labels,
+        "applies": bool(labels),
+        "summary_label": "｜".join(labels) if labels else "本局沒有額外助力",
+    }
+
+
+def _empty_game_modifier(game_type: str) -> dict[str, Any]:
+    return {
+        "game_type": game_type,
+        "applies": False,
+        "score_multiplier": 1.0,
+        "speed_multiplier": 1.0,
+        "bonus_start_score": 0,
+        "shield_charges": 0,
+        "rescue_chances": 0,
+        "turn_rate": 0.09,
+        "strength_fruit_bonus": 0,
+    }
+
+
 def normalize_game_buff(outfit: dict[str, Any], game_type: str) -> dict[str, Any]:
     buff = dict(outfit.get("buff") or FALLBACK_BUFF)
     target = str(buff.get("target_game") or "none")
@@ -487,7 +759,7 @@ def normalize_game_buff(outfit: dict[str, Any], game_type: str) -> dict[str, Any
         "score_multiplier": score_multiplier,
         "speed_multiplier": speed_multiplier,
         "bonus_start_score": bonus_start_score,
-        "buff_label": buff.get("buff_label") if applies else "本遊戲沒有加成",
+        "buff_label": buff.get("buff_label") if applies else "本遊戲沒有額外助力",
         "buff_description": buff.get("buff_description") if applies else "這件裝備在本遊戲只作為外觀展示。",
     }
 

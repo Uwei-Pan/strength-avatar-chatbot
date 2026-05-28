@@ -124,6 +124,69 @@ def award_game_token_once(
             raise
 
 
+def revoke_game_token_awards(
+    child_id: str,
+    *,
+    game_type: str,
+    game_id: str,
+    thresholds: list[int],
+) -> int:
+    if not thresholds:
+        return 0
+
+    reasons = [
+        f"game_{game_type}_{game_id}_{int(threshold)}"
+        for threshold in thresholds
+        if int(threshold) > 0
+    ]
+    if not reasons:
+        return 0
+
+    with get_connection() as conn:
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT tokens FROM children WHERE child_id = %s FOR UPDATE",
+                    (child_id,),
+                )
+                child = cursor.fetchone()
+                if not child:
+                    raise ValueError("找不到 child，無法調整遊戲代幣。")
+
+                revoked = 0
+                for reason in reasons:
+                    cursor.execute(
+                        """
+                        SELECT id
+                        FROM token_transactions
+                        WHERE child_id = %s AND reason = %s AND amount = 1
+                        LIMIT 1
+                        FOR UPDATE
+                        """,
+                        (child_id, reason),
+                    )
+                    transaction = cursor.fetchone()
+                    if not transaction:
+                        continue
+                    cursor.execute(
+                        "DELETE FROM token_transactions WHERE id = %s",
+                        (transaction["id"],),
+                    )
+                    revoked += 1
+
+                if revoked:
+                    new_balance = max(0, int(child["tokens"]) - revoked)
+                    cursor.execute(
+                        "UPDATE children SET tokens = %s WHERE child_id = %s",
+                        (new_balance, child_id),
+                    )
+            conn.commit()
+            return revoked
+        except Exception:
+            conn.rollback()
+            raise
+
+
 def save_game_reflection(
     *,
     child_id: str,

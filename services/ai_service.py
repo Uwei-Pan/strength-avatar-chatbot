@@ -7,10 +7,10 @@ from typing import Any
 from dotenv import load_dotenv
 
 from services.strength_service import (
-    build_via_prompt_context,
+    build_strength_prompt_context,
     detect_strengths_rule_based,
     get_strength_definition_by_name,
-    get_via_interpretation_principles,
+    get_strength_interpretation_principles,
     normalize_strength_name,
 )
 from services.student_profile_service import (
@@ -94,7 +94,7 @@ def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[s
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key or api_key == "your_gemini_api_key_here":
-        return _mock_analyze(cleaned, "沒有偵測到 GEMINI_API_KEY，使用 mock mode。", child_profile)
+        return _mock_analyze(cleaned, "沒有設定 GEMINI_API_KEY，使用 mock mode。", child_profile)
 
     try:
         return _analyze_with_gemini(child_profile, cleaned, api_key)
@@ -118,7 +118,7 @@ def validate_reflection_answer(
         return {
             **local_result,
             "mode": "mock",
-            "error": "沒有偵測到 GEMINI_API_KEY，使用本機規則判斷。",
+            "error": "沒有設定 GEMINI_API_KEY，使用本機規則確認。",
         }
 
     try:
@@ -253,12 +253,12 @@ def _analyze_with_gemini(
     ]
     case_context = get_ai_case_context(child_profile.get("child_id", ""))
     observation_context = get_ai_observation_context(child_profile.get("child_id", ""))
-    via_context = build_via_prompt_context()
-    via_principles = "\n".join(f"- {item}" for item in get_via_interpretation_principles())
+    strength_context = build_strength_prompt_context()
+    strength_principles = "\n".join(f"- {item}" for item in get_strength_interpretation_principles())
     prompt = f"""
 你是一位溫暖、支持、鼓勵孩子的兒少優勢探索 AI 夥伴。請用繁體中文回覆。
 你的任務不是批評、命令或診斷孩子，而是陪孩子一起理解感受、看見自己的優勢，並給出簡單可行的小建議。
-你會使用 VIA 24 項品格優勢作為「觀察 rubric」，但不得要求孩子填寫問卷，也不得宣稱這是正式心理測驗。
+你會使用 24 個成長亮點作為觀察參考，但不得要求孩子填寫問卷，也不得宣稱這是正式心理測驗。
 
 孩子資料：
 - 名字：{child_profile.get("name", "孩子")}
@@ -276,10 +276,10 @@ def _analyze_with_gemini(
 只能使用以下 24 種優勢名稱，不可以創造其他名稱：
 {", ".join(sorted(ALLOWED_STRENGTH_NAMES))}
 
-{via_context}
+{strength_context}
 
-VIA 解釋守則：
-{via_principles}
+亮點觀察守則：
+{strength_principles}
 
 請只回傳 JSON，不要加 Markdown。格式必須是：
 {{
@@ -294,8 +294,8 @@ VIA 解釋守則：
       "evidence_sources": ["counseling_record | journal | task | game_response | platform_interaction"],
       "evidence_quotes": ["孩子或紀錄中的具體短句"],
       "evidence_text": "孩子訊息中的具體 evidence",
-      "reason": "判斷原因",
-      "reasoning_summary": "用 1-2 句說明為什麼這些行為支持此優勢；若證據少請說需要更多觀察",
+      "reason": "整理原因",
+      "reasoning_summary": "用 1-2 句說明這些行為如何展現此優勢；若紀錄較少請說可以繼續觀察",
       "child_friendly_feedback": "給孩子看的鼓勵回饋，必須引用具體行為",
       "teacher_facing_explanation": "給老師/輔導者看的解釋，說明來源、信心與限制"
     }}
@@ -311,13 +311,13 @@ VIA 解釋守則：
 - reply_to_child 控制在 3 到 6 句，句子短一點，適合兒童閱讀。
 - 一次只問 1 個主要問題，不要一次丟很多問題給孩子。
 - 可以自然引導孩子多說「發生了什麼、當時感覺、做了什麼選擇、哪裡做得不錯、要不要試一個小任務」。
-- 如果孩子分享太短，例如「嗨」「不知道」「還好」，請溫柔說明還不太夠判斷優勢，並只追問一個具體問題。
+- 如果孩子分享太短，例如「嗨」「不知道」「還好」，請溫柔說明還需要多一點故事才能看見亮點，並只追問一個具體問題。
 - 不要在 reply_to_child 裡自行宣告精確代幣數；後端會依照孩子分享的具體度附加實際代幣提示。
-- 可以用自然口吻提醒：「說得越具體，我越能看見你的優勢，也可能幫你獲得優勢代幣。」
+- 可以用自然口吻提醒：「說得越具體，我越能看見你的亮點，也可能幫你獲得優勢代幣。」
 - 不責備、不說教、不過度診斷，也不要要求孩子立刻變好。
-- 不要每次都硬判斷優勢。
+- 不要每次都硬整理優勢。
 - 如果只是「今天很累」「不知道」「還好」這類低訊息內容，不要新增優勢。
-- 如果具體行為證據不足，detected_strengths 請留空，或將 confidence_level 設為 low 並在 reasoning_summary 標示「需要更多觀察」。
+- 如果具體行為紀錄還不夠完整，detected_strengths 請留空，或將 confidence_level 設為 low 並在 reasoning_summary 標示「可以繼續觀察」。
 - 如果兩項優勢證據量接近，可以在 reasoning_summary 說「相近」或「可能並列」，不要強行排序。
 - 不要說任何優勢是弱點，也不要把孩子和其他學生比較。
 - 優勢是可成長的觀察，不是固定人格標籤。
@@ -403,7 +403,7 @@ def _mock_analyze(
         reply = (
             "謝謝你願意告訴我。聽起來這件事在你心裡有一點重量，"
             "你願意把它說出來已經很不容易。"
-            "我們可以先不急著判斷對錯，只一起看看到底發生了什麼。"
+            "我們可以先不急著分對錯，只一起看看到底發生了什麼。"
         )
 
     follow_up = "你願意再說一點，當時你心裡最明顯的感覺是什麼嗎？"
@@ -508,8 +508,8 @@ def _clean_detected_strengths(detected: list[Any]) -> list[dict[str, Any]]:
         item["teacher_facing_explanation"] = str(
             item.get("teacher_facing_explanation")
             or (
-                f"此判斷依據具體行為文字與 VIA「{strength_name}」rubric；"
-                "不是正式心理測驗結果，證據少時需持續觀察。"
+                f"此觀察依據具體行為文字與「{strength_name}」的行為描述；"
+                "不是正式心理測驗結果，紀錄較少時需持續陪伴觀察。"
             )
         )
         cleaned.append(item)

@@ -18,7 +18,7 @@ from services.token_service import award_chat_tokens
 SUGGESTIONS = [
     "我今天有點不開心",
     "我今天做了一件很棒的事",
-    "我想知道我的優勢",
+    "我想知道我的亮點",
     "可以鼓勵我一下嗎？",
     "請給我一個小任務",
 ]
@@ -40,7 +40,7 @@ def render() -> None:
     st.markdown(
         f"""
         <div class="kid-hero">
-            <p class="kid-hero-title">和 AI 夥伴聊聊</p>
+            <p class="kid-hero-title">和智慧小幫手聊聊</p>
             <p class="kid-hero-copy">{escape(str(child["name"]))}，這裡只會顯示本次聊天；過去紀錄收在下方，不會混在一起。</p>
         </div>
         """,
@@ -85,7 +85,7 @@ def _render_current_chat(session: dict[str, Any]) -> None:
         st.markdown(
             """
             <div class="kid-card">
-                新的聊天已準備好。你可以先用一句話告訴 AI 夥伴今天發生了什麼，或點下面的小提示開始。
+                新的聊天已準備好。你可以先用一句話告訴小幫手今天發生了什麼，或點下面的小提示開始。
             </div>
             """,
             unsafe_allow_html=True,
@@ -94,7 +94,7 @@ def _render_current_chat(session: dict[str, Any]) -> None:
 
     for message in session["messages"]:
         role = message.get("role", "assistant")
-        name = "你" if role == "user" else "AI 夥伴"
+        name = "你" if role == "user" else "智慧小幫手"
         _render_bubble(role, name, message.get("content", ""))
         if role == "assistant" and message.get("detected_strengths"):
             _render_strength_chips(message["detected_strengths"])
@@ -107,7 +107,7 @@ def _render_input(child: dict[str, Any], session: dict[str, Any]) -> None:
             height=120,
             placeholder="可以告訴我今天發生的一件小事，或你的心情。例如：我今天有點生氣，因為我覺得被誤會。",
         )
-        submitted = st.form_submit_button("送出給 AI 夥伴", use_container_width=True)
+        submitted = st.form_submit_button("送出給小幫手", use_container_width=True)
 
     st.caption("也可以快速開始：")
     cols = st.columns(len(SUGGESTIONS))
@@ -141,7 +141,7 @@ def _submit_message(child: dict[str, Any], session: dict[str, Any], cleaned: str
             """
             <div class="thinking-card">
                 <span class="thinking-dots"><span></span><span></span><span></span></span>
-                <span>AI 夥伴正在想一想，幫你整理回覆...</span>
+                <span>小幫手正在想一想，幫你整理回覆...</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -189,7 +189,7 @@ def _submit_message(child: dict[str, Any], session: dict[str, Any], cleaned: str
     if result.get("mode") == "gemini":
         st.session_state["chat_notice"] = {
             "type": "success",
-            "text": "AI 夥伴回覆完成。",
+            "text": "智慧小幫手回覆完成。",
         }
     elif result.get("error"):
         st.session_state["chat_notice"] = {
@@ -293,7 +293,7 @@ def _render_history(child_id: str) -> None:
                 )
                 with st.expander("查看原始對話", expanded=False):
                     for message in session.get("messages", []):
-                        name = "你" if message.get("role") == "user" else "AI 夥伴"
+                        name = "你" if message.get("role") == "user" else "智慧小幫手"
                         st.markdown(f"**{name}：** {message.get('content', '')}")
 
 
@@ -309,7 +309,7 @@ def _with_token_guidance(
         reason_text = _token_reason_text(token_events)
         return f"{reply}\n\n我看見你{reason_text}，這次你獲得了 {tokens_earned} 枚優勢代幣。"
     return (
-        f"{reply}\n\n這還不太夠讓我判斷你的優勢。"
+        f"{reply}\n\n我還需要多一點故事，才能更好看見你的亮點。"
         "你可以再告訴我：當時發生了什麼事，或你做了什麼選擇嗎？"
     )
 
@@ -319,7 +319,7 @@ def _token_reason_text(token_events: list[dict[str, Any]]) -> str:
         "shared_specific_event": "分享了具體事件",
         "shared_feeling": "說出了自己的感受",
         "shared_action_or_choice": "說出了行動或選擇",
-        "showed_strength": "展現了可以判斷的優勢",
+        "showed_strength": "展現了很棒的亮點",
         "completed_small_task": "完成了小任務或反思",
     }
     reasons = [labels.get(event.get("reason"), "認真分享") for event in token_events]
@@ -351,10 +351,9 @@ def _render_strength_chips(strengths: list[dict[str, Any]]) -> None:
     chips = []
     for index, strength in enumerate(strengths):
         strength_name = strength.get("strength_name", "優勢")
-        reason = strength.get("reason", "")
         chip_class = color_classes[index % len(color_classes)]
         chips.append(
-            f'<span class="strength-chip {chip_class}" title="{escape(str(reason))}">'
+            f'<span class="strength-chip {chip_class}" title="你正在展現這個亮點">'
             f'{escape(str(strength_name))}</span>'
         )
     st.markdown(f'<div class="kid-badge-row">{"".join(chips)}</div>', unsafe_allow_html=True)

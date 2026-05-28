@@ -1,13 +1,13 @@
 {
-  "framework": "VIA 24 character strengths",
-  "usage_note": "This file converts VIA full/brief questionnaire themes into observation rubrics for learning and counseling contexts. It is not a student questionnaire and must not be treated as a formal psychological test result.",
+  "framework": "24 個成長亮點觀察架構",
+  "usage_note": "This file stores observation rubrics for learning and counseling contexts. It is not a student questionnaire and must not be treated as a formal psychological test result.",
   "interpretation_principles": [
     "優勢結果沒有好壞之分，每一項優勢都可能在合適情境中帶來幫助。",
     "排名低或證據少的優勢不能被稱為弱點，只能說目前觀察較少或需要更多資料。",
     "不得將學生彼此比較，也不得說某位學生比另一位學生更有某項優勢。",
     "優勢是可成長、可練習、會因情境而展現的資源，不是固定人格標籤。",
-    "AI 必須引用具體行為證據，不能只給抽象稱讚。",
-    "如果證據不足，請標示為「需要更多觀察」，不要硬性判斷。",
+    "回饋需要引用具體行為紀錄，不能只給抽象稱讚。",
+    "如果紀錄還不夠完整，請標示為「可以繼續觀察」，不要硬性下結論。",
     "分數或證據量接近時，請標示為「相近」或「可能並列」，不要強行排名。"
   ],
   "evidence_sources": [
@@ -302,7 +302,7 @@
       "counseling_keywords": ["目標", "下次", "未來", "進步", "希望", "計畫"],
       "semantic_cues": ["失敗後專注下次機會", "把想變好的地方轉成行動", "對未來有清楚圖像", "相信努力會帶來改變"],
       "behavior_indicators": ["經驗失敗與挫折時展現希望或樂觀", "向好的一面看", "計劃未來想做的事"],
-      "not_overinterpret": "空泛說會變好不足以高信心；需要看見目標、行動或面對挫折後的方向。"
+      "not_overinterpret": "空泛說會變好還不夠；需要看見目標、行動或面對挫折後的方向。"
     },
     {
       "strength_id": "humor",

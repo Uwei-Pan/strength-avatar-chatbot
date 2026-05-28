@@ -63,7 +63,7 @@ def purchase_outfit(child_id: str, outfit_id: str) -> int:
                 cost = int(outfit["cost"] or 0)
                 new_balance = int(child["tokens"]) - cost
                 if new_balance < 0:
-                    raise InsufficientTokensError("代幣不足，還不能購買這套服裝。")
+                    raise InsufficientTokensError("代幣還不夠，先累積幾個努力時刻再回來看看。")
 
                 cursor.execute(
                     """

@@ -506,6 +506,45 @@ def _inject_style() -> None:
             margin-left: 0.2rem;
         }
 
+        .growth-chart-card,
+        .growth-story-card {
+            border: 1px solid var(--kid-border);
+            box-shadow: var(--kid-soft-shadow);
+        }
+
+        .growth-chart-card {
+            padding: 0.8rem 0.85rem;
+            margin: 0.45rem 0 1rem;
+            border-radius: 28px;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at 12% 14%, rgba(255, 181, 84, 0.16), transparent 30%),
+                radial-gradient(circle at 86% 18%, rgba(255, 224, 138, 0.1), transparent 28%),
+                #11141d;
+            border-color: rgba(255, 190, 118, 0.22);
+        }
+
+        .growth-story-card {
+            padding: 0.85rem 1rem;
+            margin: 0.55rem 0 0.25rem;
+            border-radius: 22px;
+            background:
+                radial-gradient(circle at 8% 16%, rgba(255, 225, 106, 0.26), transparent 28%),
+                linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(231, 245, 255, 0.86));
+        }
+
+        .growth-story-card strong {
+            display: block;
+            color: var(--kid-ink);
+            font-size: 1.05rem;
+            font-weight: 900;
+        }
+
+        .growth-story-card p {
+            margin: 0.25rem 0 0;
+            color: var(--kid-muted);
+        }
+
         .character-visual,
         .gear-visual {
             position: relative;
@@ -524,6 +563,12 @@ def _inject_style() -> None:
         .character-visual.is-large {
             width: 112px;
             height: 122px;
+            margin-bottom: 0;
+        }
+
+        .character-visual.is-small {
+            width: 58px;
+            height: 64px;
             margin-bottom: 0;
         }
 

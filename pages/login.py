@@ -9,7 +9,7 @@ def render() -> None:
         """
         <div class="kid-hero">
             <p class="kid-hero-title">優勢探索小幫手</p>
-            <p class="kid-hero-copy">登入你的優勢基地，和 AI 夥伴一起記下今天的小發現。</p>
+            <p class="kid-hero-copy">登入你的優勢基地，和智慧小幫手一起記下今天的小發現。</p>
         </div>
         """,
         unsafe_allow_html=True,

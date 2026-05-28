@@ -12,7 +12,9 @@ from games.block_puzzle import (
 from games.slither_component import slither_snake_game
 from services.ai_service import validate_reflection_answer
 from services.avatar_assets import (
-    get_game_buff_for_child,
+    character_visual_html,
+    get_active_game_modifiers,
+    get_character_profile,
     get_selected_outfit_profile,
     outfit_visual_html,
 )
@@ -24,6 +26,7 @@ from services.game_service import (
     award_game_token_once,
     finish_game,
     new_game_id,
+    revoke_game_token_awards,
     save_game_reflection,
     start_game,
 )
@@ -159,7 +162,7 @@ def _render_snake(child: dict[str, Any]) -> None:
         st.markdown(
             """
             <div class="kid-card">
-                這一版會連續滑行，使用方向鍵或 WASD 轉向。吃到星光點心 +10；
+                使用方向鍵移動或滑鼠操控。吃到星光點心 +10；
                 大顆、會移動的優勢果實 +40，結束時會幫你整理吃到哪些優勢果實。
             </div>
             """,
@@ -171,7 +174,7 @@ def _render_snake(child: dict[str, Any]) -> None:
                 st.session_state["snake_game"] = _new_snake_state(
                     started=True,
                     tokens_spent=GAME_START_COST,
-                    active_buff=get_game_buff_for_child(child, "snake"),
+                    active_modifiers=get_active_game_modifiers(child, "snake"),
                 )
                 st.rerun()
         return
@@ -192,8 +195,9 @@ def _new_snake_state(
     *,
     started: bool = False,
     tokens_spent: int = 0,
-    active_buff: dict[str, Any] | None = None,
+    active_modifiers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    modifiers = active_modifiers or {}
     return {
         "game_id": new_game_id(),
         "started": started,
@@ -211,7 +215,9 @@ def _new_snake_state(
         "game_over_reason": "",
         "saved": False,
         "tokens_spent": int(tokens_spent),
-        "active_buff": active_buff or {},
+        "active_modifiers": modifiers,
+        "active_buff": modifiers.get("outfit", {}) if isinstance(modifiers, dict) else {},
+        "ability_events": [],
     }
 
 
@@ -242,6 +248,7 @@ def _handle_snake_game_over(child_id: str, state: dict[str, Any], payload: Any) 
     state["fruits_eaten"] = attempt_fruits
     state.setdefault("all_fruits_eaten", []).extend(attempt_fruits)
     state["strength_summary"] = str(payload.get("strength_summary") or "")
+    state["ability_events"] = list(payload.get("ability_events") or [])
     state["game_over"] = True
     state["game_over_reason"] = str(payload.get("game_over_reason") or "hit_wall")
     state["completed"] = True
@@ -268,8 +275,8 @@ def _render_block_puzzle(child: dict[str, Any]) -> None:
         st.markdown(
             """
             <div class="kid-card">
-                選一個方塊，再點棋盤上的放置位置。填滿整列或整行就會消除加分；
-                當三個方塊都放不下時，就要先回答小問題才能再來一局。
+                把下方方塊拖曳到棋盤上，看到預覽後放開就能放置。填滿整列或整行就會消除加分；
+                放錯一步可以按「返回上一步」，當三個方塊都放不下時，就要先回答小問題才能再來一局。
             </div>
             """,
             unsafe_allow_html=True,
@@ -280,7 +287,7 @@ def _render_block_puzzle(child: dict[str, Any]) -> None:
                 st.session_state["block_puzzle_game"] = _new_block_state(
                     started=True,
                     tokens_spent=GAME_START_COST,
-                    active_buff=get_game_buff_for_child(child, "block_puzzle"),
+                    active_modifiers=get_active_game_modifiers(child, "block_puzzle"),
                 )
                 st.rerun()
         return
@@ -292,8 +299,10 @@ def _render_block_puzzle(child: dict[str, Any]) -> None:
         key=f"block_neon_{state['game_id']}",
         on_game_over_change=lambda: None,
         on_token_award_change=lambda: None,
+        on_undo_move_change=lambda: None,
     )
     _handle_block_token_event(child_id, state, _component_value(result, "token_award"))
+    _handle_block_undo_event(child_id, state, _component_value(result, "undo_move"))
     _handle_block_game_over(child_id, state, _component_value(result, "game_over"))
 
 
@@ -301,15 +310,18 @@ def _new_block_state(
     *,
     started: bool = False,
     tokens_spent: int = 0,
-    active_buff: dict[str, Any] | None = None,
+    active_modifiers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    modifiers = active_modifiers or {}
     state = new_block_game()
     state["started"] = started
     state["revivals_used"] = 0
     state["completed"] = False
     state["saved"] = False
     state["tokens_spent"] = int(tokens_spent)
-    state["active_buff"] = active_buff or {}
+    state["active_modifiers"] = modifiers
+    state["active_buff"] = modifiers.get("outfit", {}) if isinstance(modifiers, dict) else {}
+    state["ability_events"] = []
     return state
 
 
@@ -329,6 +341,43 @@ def _handle_block_token_event(child_id: str, state: dict[str, Any], payload: Any
     st.session_state["block_puzzle_game"] = state
 
 
+def _handle_block_undo_event(child_id: str, state: dict[str, Any], payload: Any) -> None:
+    if not isinstance(payload, dict):
+        return
+    if payload.get("game_id") != state["game_id"]:
+        return
+
+    reverted_thresholds = [
+        int(threshold)
+        for threshold in payload.get("reverted_thresholds", [])
+        if int(threshold) > 0
+    ]
+    if reverted_thresholds:
+        try:
+            revoked = revoke_game_token_awards(
+                child_id,
+                game_type="block_puzzle",
+                game_id=state["game_id"],
+                thresholds=reverted_thresholds,
+            )
+        except DatabaseConnectionError as exc:
+            st.error(str(exc))
+            revoked = 0
+        if revoked:
+            st.toast("已一起退回這一步得到的代幣，可以放心重新試。", icon=":material/undo:")
+
+    state["score"] = int(payload.get("score") or 0)
+    state["high_score"] = int(payload.get("high_score") or state.get("high_score", 0))
+    state["placements"] = list(payload.get("placements") or [])
+    state["tokens_earned"] = max(0, int(payload.get("tokens_earned") or 0))
+    state["awarded_thresholds"] = [
+        int(threshold)
+        for threshold in payload.get("awarded_thresholds", [])
+        if int(threshold) > 0
+    ]
+    st.session_state["block_puzzle_game"] = state
+
+
 def _handle_block_game_over(child_id: str, state: dict[str, Any], payload: Any) -> None:
     if not isinstance(payload, dict):
         return
@@ -337,6 +386,7 @@ def _handle_block_game_over(child_id: str, state: dict[str, Any], payload: Any) 
     state["score"] = int(payload.get("score") or 0)
     state["high_score"] = int(payload.get("high_score") or state.get("high_score", 0))
     state["placements"] = list(payload.get("placements") or [])
+    state["ability_events"] = list(payload.get("ability_events") or [])
     state["game_over"] = True
     state["game_over_reason"] = str(payload.get("game_over_reason") or "no_valid_moves")
     state["completed"] = True
@@ -390,7 +440,7 @@ def _save_finished_game(
         finish_game(
             child_id,
             int(state.get("score", 0)),
-            _events_with_buff(state, events),
+            _events_with_modifiers(state, events),
             game_type=game_type,
             tokens_earned=int(state.get("tokens_earned", 0)),
             game_over_reason=str(state.get("game_over_reason", "")),
@@ -485,13 +535,13 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
         st.session_state["snake_game"] = _new_snake_state(
             started=True,
             tokens_spent=0,
-            active_buff=get_game_buff_for_child(child, "snake"),
+            active_modifiers=get_active_game_modifiers(child, "snake"),
         )
     else:
         st.session_state["block_puzzle_game"] = _new_block_state(
             started=True,
             tokens_spent=0,
-            active_buff=get_game_buff_for_child(child, "block_puzzle"),
+            active_modifiers=get_active_game_modifiers(child, "block_puzzle"),
         )
     st.session_state["pending_reflection_question"] = None
     st.success("回答已保存，新的挑戰開始囉。")
@@ -526,19 +576,33 @@ def _metric_score(key: str) -> str:
 
 
 def _render_equipment_preview(child: dict[str, Any], game_type: str) -> None:
+    character = get_character_profile(child.get("selected_character"))
+    ability = character.get("ability") or {}
     outfit = get_selected_outfit_profile(child)
-    buff = get_game_buff_for_child(child, game_type)
-    applies_tag = "會在本局生效" if buff.get("applies") else "本局只作為外觀"
+    modifiers = get_active_game_modifiers(child, game_type)
+    character_modifier = modifiers.get("character") or {}
+    outfit_buff = modifiers.get("outfit") or {}
+    outfit_tag = (
+        f"{outfit_buff.get('buff_label')}｜會在本局生效"
+        if outfit_buff.get("applies")
+        else f"{outfit_buff.get('buff_label') or '本局沒有服裝助力'}｜本局只作為外觀"
+    )
     st.markdown(
         f"""
         <div class="equipment-preview-card">
+            {character_visual_html(character, "is-small")}
+            <div>
+                <strong>目前角色：{escape(str(character.get("display_name") or "角色"))}</strong>
+                <p>{escape(str(ability.get("ability_description") or "角色會陪你一起完成挑戰。"))}</p>
+                <p class="gear-buff-line">角色助力：{escape(str(character_modifier.get("label") or "角色陪你一起挑戰"))}</p>
+            </div>
+        </div>
+        <div class="equipment-preview-card">
             {outfit_visual_html(outfit, "is-small")}
             <div>
-                <strong>目前裝備：{escape(str(outfit.get("display_name") or "尚未選擇"))}</strong>
+                <strong>目前服裝：{escape(str(outfit.get("display_name") or "尚未選擇"))}</strong>
                 <p>{escape(str(outfit.get("short_description") or "可以到角色頁選一件裝備。"))}</p>
-                <p class="gear-buff-line">
-                    {escape(str(buff.get("buff_label") or "本遊戲沒有加成"))}｜{escape(applies_tag)}
-                </p>
+                <p class="gear-buff-line">服裝助力：{escape(str(outfit_tag))}</p>
             </div>
         </div>
         """,
@@ -546,30 +610,54 @@ def _render_equipment_preview(child: dict[str, Any], game_type: str) -> None:
     )
 
 
-def _buff_status_label(buff: Any) -> str:
-    if not isinstance(buff, dict) or not buff:
+def _modifier_status_label(modifiers: Any) -> str:
+    if not isinstance(modifiers, dict) or not modifiers:
         return "尚未開始"
-    if not buff.get("applies"):
-        return "本遊戲沒有加成"
-    return f"{buff.get('buff_label') or '裝備加成'}（已套用）"
+    if "summary_label" in modifiers:
+        return f"{modifiers.get('summary_label') or '本局沒有額外助力'}（已套用）"
+    if not modifiers.get("applies"):
+        return "本遊戲沒有額外助力"
+    return f"{modifiers.get('buff_label') or '服裝助力'}（已套用）"
 
 
-def _events_with_buff(state: dict[str, Any], events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    buff = state.get("active_buff")
-    if not isinstance(buff, dict) or not buff.get("applies"):
-        return list(events)
-    return [
-        {
-            "event_type": "outfit_buff",
-            "outfit_id": buff.get("outfit_id", ""),
-            "outfit_name": buff.get("outfit_name", ""),
-            "buff_type": buff.get("buff_type", ""),
-            "buff_value": buff.get("buff_value", 0),
-            "buff_label": buff.get("buff_label", ""),
-            "target_game": buff.get("target_game", ""),
-        },
-        *list(events),
-    ]
+def _events_with_modifiers(state: dict[str, Any], events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    modifiers = state.get("active_modifiers") if isinstance(state.get("active_modifiers"), dict) else {}
+    if not modifiers:
+        buff = state.get("active_buff")
+        if isinstance(buff, dict) and buff.get("applies"):
+            modifiers = {"outfit": buff, "character": {}, "summary_label": buff.get("buff_label", "")}
+
+    result: list[dict[str, Any]] = []
+    character = modifiers.get("character") if isinstance(modifiers, dict) else {}
+    if isinstance(character, dict) and character.get("applies"):
+        result.append(
+            {
+                "event_type": "character_ability",
+                "character_key": character.get("character_key", ""),
+                "character_name": character.get("character_name", ""),
+                "ability_name": character.get("ability_name", ""),
+                "effect_type": character.get("effect_type", ""),
+                "effect_value": character.get("effect_value", 0),
+                "label": character.get("label", ""),
+            }
+        )
+    outfit = modifiers.get("outfit") if isinstance(modifiers, dict) else {}
+    if isinstance(outfit, dict) and outfit.get("applies"):
+        result.append(
+            {
+                "event_type": "outfit_buff",
+                "outfit_id": outfit.get("outfit_id", ""),
+                "outfit_name": outfit.get("outfit_name", ""),
+                "buff_type": outfit.get("buff_type", ""),
+                "buff_value": outfit.get("buff_value", 0),
+                "buff_label": outfit.get("buff_label", ""),
+                "target_game": outfit.get("target_game", ""),
+            }
+        )
+    for ability_event in state.get("ability_events", []):
+        if isinstance(ability_event, dict):
+            result.append({"event_type": "ability_used", **ability_event})
+    return [*result, *list(events)]
 
 
 def _render_running_toolbar(game_type: str, state: dict[str, Any]) -> None:
@@ -578,7 +666,7 @@ def _render_running_toolbar(game_type: str, state: dict[str, Any]) -> None:
         st.caption("遊戲進行中；不想繼續時可以直接退出，會回到遊戲入口。")
     with cols[1]:
         st.markdown(
-            f'<span class="gear-buff-pill">本局加成：<strong>{escape(_buff_status_label(state.get("active_buff")))}</strong></span>',
+            f'<span class="gear-buff-pill">本局助力：<strong>{escape(_modifier_status_label(state.get("active_modifiers") or state.get("active_buff")))}</strong></span>',
             unsafe_allow_html=True,
         )
     with cols[2]:
@@ -597,14 +685,16 @@ def _render_game_over_panel(state: dict[str, Any], game_type: str) -> None:
     reason = str(state.get("game_over_reason") or _default_game_over_reason(game_type))
     reason_label = GAME_OVER_LABELS.get(reason, "這一局結束了！")
     summary = state.get("final_summary") or "這一局已經結束，可以選擇退出，或先回答一個小問題再挑戰。"
-    buff_label = _buff_status_label(state.get("active_buff"))
+    modifier_label = _modifier_status_label(state.get("active_modifiers") or state.get("active_buff"))
+    ability_line = _ability_event_summary(state.get("ability_events", []))
     st.markdown(
         f"""
         <div class="game-over-card">
             <strong>{escape(game_label)}結束</strong><br>
             原因：{escape(reason_label)}<br>
             本次分數：{int(state.get("score", 0))}｜本次獲得代幣：+{int(state.get("tokens_earned", 0))}<br>
-            本局加成：{escape(buff_label)}<br>
+            本局助力：{escape(modifier_label)}<br>
+            {escape(ability_line)}<br>
             {escape(str(summary))}
         </div>
         """,
@@ -648,7 +738,7 @@ def _render_game_status(child: dict[str, Any], current_game: str) -> None:
         <div class="game-status-strip">
             <span>目前代幣：<strong>{int(child.get("tokens", 0))}</strong></span>
             <span>{escape(GAME_LABELS.get(current_game, "遊戲"))}本局：<strong>{escape(_metric_score(state_key))}</strong></span>
-            <span>裝備加成：<strong>{escape(_buff_status_label(state.get("active_buff")))}</strong></span>
+            <span>本局助力：<strong>{escape(_modifier_status_label(state.get("active_modifiers") or state.get("active_buff")))}</strong></span>
             <span>每 {threshold} 分 +1 代幣，單局最多 +{MAX_GAME_TOKENS_PER_ROUND}</span>
         </div>
         """,
@@ -701,6 +791,17 @@ def _snake_strength_summary(fruits_eaten: list[dict[str, Any]]) -> str:
         suggestion = _strength_practice_tip(strength_name)
         parts.append(f"{fruit_name} +{points} 分（吃到後總分 {score_after}）。下次可以這樣做到「{strength_name}」：{suggestion}")
     return "、".join(parts)
+
+
+def _ability_event_summary(events: Any) -> str:
+    if not isinstance(events, list) or not events:
+        return "這一局的角色助力一直陪著你。"
+    labels = []
+    for event in events[:3]:
+        if not isinstance(event, dict):
+            continue
+        labels.append(str(event.get("message") or event.get("label") or "角色幫了你一下"))
+    return "、".join(labels) if labels else "這一局的角色助力一直陪著你。"
 
 
 def _strength_practice_tip(strength_name: str) -> str:

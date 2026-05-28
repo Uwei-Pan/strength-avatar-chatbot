@@ -33,11 +33,15 @@ SOURCE_LABELS = {
     "unknown": "其他",
 }
 
-CONFIDENCE_LABELS = {
-    "high": "high",
-    "medium": "medium",
-    "low": "low",
-}
+CHART_BACKGROUND = "#11141d"
+CHART_GRID = "rgba(255, 231, 196, 0.18)"
+CHART_TEXT = "#f7e8cf"
+CHART_MUTED = "#d4bfa2"
+PAST_COLOR = "#d9a66c"
+CURRENT_COLOR = "#ff7f59"
+TREND_LINE_COLOR = "#f4bf4f"
+TREND_AREA_COLOR = "#f7a64b"
+TREND_POINT_COLOR = "#ffe08a"
 
 
 def render() -> None:
@@ -77,7 +81,7 @@ def render() -> None:
     )
 
     _render_summary(summary)
-    _render_via_backing(dashboard)
+    _render_growth_stories(dashboard)
     _render_distribution(dashboard)
     _render_trend(dashboard)
     _render_sources(dashboard)
@@ -88,7 +92,7 @@ def _render_summary(summary: dict[str, Any]) -> None:
     cols = st.columns(4)
     cols[0].metric("已發現優勢", int(summary.get("current_strength_count") or 0))
     cols[1].metric("新增看見", int(summary.get("new_strength_count") or 0))
-    cols[2].metric("累積證據", int(summary.get("evidence_count") or 0))
+    cols[2].metric("努力足跡", int(summary.get("effort_count") or summary.get("evidence_count") or 0))
     cols[3].metric("遊戲反思", int(summary.get("reflection_count") or 0))
 
     st.markdown(
@@ -105,40 +109,39 @@ def _render_summary(summary: dict[str, Any]) -> None:
     )
 
 
-def _render_via_backing(dashboard: dict[str, Any]) -> None:
-    st.markdown('<p class="kid-section-title">VIA 優勢觀察背書</p>', unsafe_allow_html=True)
-    st.info(
-        "本分析依據 VIA 24 項品格優勢架構進行，但不是正式心理測驗結果；"
-        "它是學習與輔導情境中的優勢觀察。證據少的項目會標示為需要更多觀察，不能稱為弱點。"
-    )
-
+def _render_growth_stories(dashboard: dict[str, Any]) -> None:
+    st.markdown('<p class="kid-section-title">亮點小卡</p>', unsafe_allow_html=True)
+    st.info("我們一起把日記、任務、聊天和遊戲反思裡的努力時刻收藏起來，慢慢看見你的閃光點。")
     evidence_summary = list(dashboard.get("evidence_summary") or [])
     if not evidence_summary:
-        st.caption("目前還沒有足夠的具體行為證據。")
+        st.caption("目前亮點故事還在累積中。多分享一點生活小事，這裡會慢慢長出你的成長足跡。")
         return
 
     for item in evidence_summary[:6]:
-        with st.container(border=True):
-            top_cols = st.columns([1.2, 1, 1.6], vertical_alignment="center")
-            top_cols[0].markdown(f"**{escape(str(item.get('strength_name') or '優勢'))}**")
-            top_cols[1].markdown(f"信心程度：`{CONFIDENCE_LABELS.get(str(item.get('confidence_level')), 'low')}`")
-            top_cols[2].markdown(f"證據數：`{int(item.get('evidence_count') or 0)}`")
-
+        strength_name = str(item.get("strength_name") or "優勢")
+        st.markdown(
+            f"""
+            <div class="growth-story-card">
+                <strong>{escape(strength_name)}</strong>
+                <p>你正在展現這個亮點，這些紀錄會陪你看見自己的成長。</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.expander(f"看看我的成長故事｜{strength_name}"):
             source_counts = item.get("evidence_sources") or {}
             chips = []
             color_classes = ["chip-a", "chip-b", "chip-c", "chip-d", "chip-e", "chip-f"]
-            for index, (source, count) in enumerate(source_counts.items()):
+            for index, source in enumerate(source_counts.keys()):
                 label = SOURCE_LABELS.get(str(source), str(source))
-                chips.append(
-                    f'<span class="strength-chip {color_classes[index % len(color_classes)]}">'
-                    f'{escape(label)}：{int(count)}</span>'
-                )
+                chips.append(f'<span class="strength-chip {color_classes[index % len(color_classes)]}">{escape(label)}</span>')
             if chips:
                 st.markdown(f'<div class="kid-badge-row">{"".join(chips)}</div>', unsafe_allow_html=True)
-
-            for quote in item.get("evidence_quotes", [])[:3]:
+            quotes = list(item.get("evidence_quotes") or [])[:3]
+            if not quotes:
+                st.caption("這個亮點正在慢慢累積更多故事。")
+            for quote in quotes:
                 st.markdown(f"> {escape(str(quote))}")
-            st.caption(str(item.get("reasoning_summary") or ""))
 
 
 def _render_distribution(dashboard: dict[str, Any]) -> None:
@@ -167,23 +170,50 @@ def _render_distribution(dashboard: dict[str, Any]) -> None:
 
     chart = (
         alt.Chart(pd.DataFrame(rows))
-        .mark_bar(cornerRadiusEnd=5)
+        .mark_bar(size=16)
         .encode(
-            x=alt.X("次數:Q", title="被看見的次數", axis=alt.Axis(tickMinStep=1)),
-            y=alt.Y("優勢:N", title="", sort=[item["strength_name"] for item in comparison[:14]]),
+            x=alt.X(
+                "次數:Q",
+                title="被看見的次數",
+                axis=alt.Axis(tickMinStep=1, titlePadding=24, labelPadding=8),
+            ),
+            y=alt.Y(
+                "優勢:N",
+                title="",
+                sort=[item["strength_name"] for item in comparison[:14]],
+                axis=alt.Axis(labelPadding=8),
+            ),
             color=alt.Color(
                 "階段:N",
                 title="階段",
-                scale=alt.Scale(domain=["過去", "現在"], range=["#9fb7d8", "#ff9f43"]),
+                scale=alt.Scale(domain=["過去", "現在"], range=[PAST_COLOR, CURRENT_COLOR]),
+                legend=alt.Legend(orient="top", titlePadding=8, labelPadding=8, symbolSize=120),
             ),
             tooltip=["階段", "優勢", "次數"],
         )
-        .properties(height=max(260, min(560, len(comparison[:14]) * 34)))
+        .properties(
+            height=max(280, min(580, len(comparison[:14]) * 36)),
+            background=CHART_BACKGROUND,
+            padding={"left": 8, "right": 28, "top": 18, "bottom": 30},
+        )
+        .configure_view(strokeWidth=0, fill=CHART_BACKGROUND)
+        .configure_axis(
+            gridColor=CHART_GRID,
+            domainColor=CHART_MUTED,
+            tickColor=CHART_MUTED,
+            labelColor=CHART_TEXT,
+            titleColor=CHART_TEXT,
+            labelFontSize=13,
+            titleFontSize=14,
+        )
+        .configure_legend(labelColor=CHART_TEXT, titleColor=CHART_TEXT, orient="top")
     )
+    st.markdown('<div class="growth-chart-card">', unsafe_allow_html=True)
     st.altair_chart(chart, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if not dashboard.get("has_initial_data"):
-        st.caption("目前沒有明確的初始 profile，先用已知紀錄做保守比較。")
+        st.caption("目前沒有明確的初始資料，先用已知紀錄陪你看見成長。")
     if not dashboard.get("has_current_data"):
         st.caption("現在的資料還很少，日記、聊天與任務會慢慢讓圖表更完整。")
 
@@ -196,47 +226,98 @@ def _render_trend(dashboard: dict[str, Any]) -> None:
         return
 
     df = pd.DataFrame(trend)
-    coverage_chart = (
-        alt.Chart(df)
-        .mark_line(point=True, strokeWidth=4)
-        .encode(
-            x=alt.X("period:N", title="時間", sort=None),
-            y=alt.Y("strength_count:Q", title="已看見的優勢數", axis=alt.Axis(tickMinStep=1)),
-            color=alt.value("#48a8f5"),
-            tooltip=[
-                alt.Tooltip("period:N", title="時間"),
-                alt.Tooltip("strength_count:Q", title="優勢數"),
-                alt.Tooltip("evidence_count:Q", title="累積證據"),
-            ],
+    if "period_order" not in df.columns:
+        df["period_order"] = range(len(df))
+    df = df.sort_values("period_order").reset_index(drop=True)
+    max_strength_count = max(1, int(df["strength_count"].max()))
+    y_max = max_strength_count + 1
+    y_values = list(range(0, y_max + 1, 1))
+
+    base = alt.Chart(df).encode(
+        x=alt.X(
+            "period:N",
+            title="時間",
+            sort=alt.SortField(field="period_order", order="ascending"),
+            axis=alt.Axis(
+                labelAngle=-34,
+                labelAlign="right",
+                labelPadding=14,
+                titlePadding=34,
+                labelLimit=150,
+            ),
+        ),
+        y=alt.Y(
+            "strength_count:Q",
+            title="已看見的優勢數",
+            scale=alt.Scale(domain=[0, y_max], nice=False),
+            axis=alt.Axis(
+                values=y_values,
+                tickMinStep=1,
+                labelPadding=12,
+                titlePadding=38,
+                titleAngle=-90,
+            ),
+        ),
+        tooltip=[
+            alt.Tooltip("period:N", title="時間"),
+            alt.Tooltip("strength_count:Q", title="已看見的優勢數"),
+        ],
+    )
+    area_chart = base.mark_area(
+        color=TREND_AREA_COLOR,
+        opacity=0.12,
+        interpolate="monotone",
+    )
+    line_chart = base.mark_line(
+        color=TREND_LINE_COLOR,
+        strokeWidth=4,
+        interpolate="monotone",
+    )
+    point_chart = base.mark_point(
+        color=TREND_POINT_COLOR,
+        fill=TREND_POINT_COLOR,
+        stroke=CHART_BACKGROUND,
+        strokeWidth=2,
+        size=95,
+    )
+    chart = (
+        (area_chart + line_chart + point_chart)
+        .properties(
+            height=360,
+            background=CHART_BACKGROUND,
+            padding={"left": 28, "right": 34, "top": 28, "bottom": 76},
+        )
+        .configure_view(strokeWidth=0, fill=CHART_BACKGROUND)
+        .configure_axis(
+            gridColor=CHART_GRID,
+            domainColor=CHART_MUTED,
+            tickColor=CHART_MUTED,
+            labelColor=CHART_TEXT,
+            titleColor=CHART_TEXT,
+            labelFontSize=13,
+            titleFontSize=15,
         )
     )
-    evidence_chart = (
-        alt.Chart(df)
-        .mark_area(opacity=0.24, line={"color": "#69c779"}, color="#69c779")
-        .encode(
-            x=alt.X("period:N", sort=None),
-            y=alt.Y("evidence_count:Q", title="累積證據"),
-            tooltip=[
-                alt.Tooltip("period:N", title="時間"),
-                alt.Tooltip("evidence_count:Q", title="累積證據"),
-            ],
-        )
-    )
-    st.altair_chart((evidence_chart + coverage_chart).resolve_scale(y="independent"), use_container_width=True)
+    st.markdown('<div class="growth-chart-card">', unsafe_allow_html=True)
+    st.altair_chart(chart, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if dashboard.get("uses_demo_growth_data"):
+        st.caption("目前使用開發展示資料預覽走勢；有真實紀錄後會優先顯示孩子自己的成長資料。")
 
 
 def _render_sources(dashboard: dict[str, Any]) -> None:
     source_counts = dashboard.get("source_counts") or {}
     if not source_counts:
         return
-    st.markdown('<p class="kid-section-title">優勢從哪裡被看見</p>', unsafe_allow_html=True)
+    st.markdown('<p class="kid-section-title">亮點來自哪些努力</p>', unsafe_allow_html=True)
     chips = []
     color_classes = ["chip-a", "chip-b", "chip-c", "chip-d", "chip-e", "chip-f"]
     for index, (source, count) in enumerate(sorted(source_counts.items(), key=lambda item: item[1], reverse=True)):
         label = SOURCE_LABELS.get(str(source), str(source))
         chips.append(
             f'<span class="strength-chip {color_classes[index % len(color_classes)]}">'
-            f'{escape(label)}：{int(count)}</span>'
+            f'{escape(label)}</span>'
         )
     st.markdown(f'<div class="kid-badge-row">{"".join(chips)}</div>', unsafe_allow_html=True)
 
@@ -245,7 +326,7 @@ def _render_detail_table(dashboard: dict[str, Any]) -> None:
     comparison = list(dashboard.get("comparison") or [])
     if not comparison:
         return
-    st.markdown('<p class="kid-section-title">細節列表</p>', unsafe_allow_html=True)
+    st.markdown('<p class="kid-section-title">成長亮點列表</p>', unsafe_allow_html=True)
     df = pd.DataFrame(
         [
             {

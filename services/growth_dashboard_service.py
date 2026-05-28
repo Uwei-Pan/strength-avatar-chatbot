@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections import Counter
 from datetime import date, datetime
 from typing import Any
@@ -24,6 +25,8 @@ SOURCE_ALIASES = {
     "unknown": "platform_interaction",
 }
 
+DASHBOARD_DEMO_GROWTH_ENV = "DASHBOARD_USE_DEMO_GROWTH"
+
 LOW_OBSERVATION_PHRASES = [
     "想知道我的優勢",
     "可以給我建議",
@@ -47,9 +50,16 @@ def build_growth_dashboard(child_id: str) -> dict[str, Any]:
         current_counts[strength_name] = max(current_counts.get(strength_name, 0), count)
 
     comparison = _comparison_rows(initial_counts, current_counts, initial_rows, records)
-    trend = _trend_rows(records, initial_counts)
+    trend = _trend_rows(records, initial_counts, initial_rows)
     source_counts = Counter(_canonical_source(str(row.get("source") or "unknown")) for row in records)
     summary = _summary(initial_counts, current_counts, records, comparison, child_id)
+    uses_demo_growth_data = _should_use_demo_growth_data(records, initial_counts)
+    if uses_demo_growth_data:
+        demo = get_demo_growth_data()
+        comparison = demo["comparison"]
+        trend = demo["trend"]
+        source_counts = Counter(demo["source_counts"])
+        summary = {**summary, **demo["summary"]}
 
     return {
         "initial_distribution": _distribution_rows(initial_counts, initial_rows),
@@ -62,7 +72,69 @@ def build_growth_dashboard(child_id: str) -> dict[str, Any]:
         "has_initial_data": bool(initial_counts),
         "has_current_data": bool(current_counts),
         "has_trend_data": len(trend) >= 2,
+        "uses_demo_growth_data": uses_demo_growth_data,
     }
+
+
+def get_demo_growth_data() -> dict[str, Any]:
+    """Development-only dashboard sample data; never writes to or replaces student records."""
+    trend = [
+        {"period": "初始｜2026-05-12", "period_order": 0, "strength_count": 1, "effort_count": 0},
+        {"period": "2026-05-15", "period_order": 1, "strength_count": 3, "effort_count": 4},
+        {"period": "2026-05-18", "period_order": 2, "strength_count": 5, "effort_count": 8},
+        {"period": "2026-05-21", "period_order": 3, "strength_count": 7, "effort_count": 13},
+        {"period": "2026-05-26", "period_order": 4, "strength_count": 9, "effort_count": 18},
+        {"period": "2026-05-28", "period_order": 5, "strength_count": 12, "effort_count": 24},
+    ]
+    comparison_specs = [
+        ("勤奮", "勇氣", 1, 4),
+        ("希望", "靈性及超越", 1, 3),
+        ("好奇心", "智慧及知識", 0, 3),
+        ("仁慈", "人性", 0, 3),
+        ("自我規範", "節制", 0, 2),
+        ("感激", "靈性及超越", 0, 2),
+        ("創造力", "智慧及知識", 0, 2),
+        ("團體合作", "正義", 0, 2),
+        ("真誠", "勇氣", 0, 1),
+        ("勇敢", "勇氣", 0, 1),
+        ("欣賞美好", "靈性及超越", 0, 1),
+        ("社交智慧", "人性", 0, 1),
+    ]
+    comparison = [
+        {
+            "strength_name": strength_name,
+            "category": category,
+            "past_count": past_count,
+            "current_count": current_count,
+            "growth": current_count - past_count,
+        }
+        for strength_name, category, past_count, current_count in comparison_specs
+    ]
+    return {
+        "trend": trend,
+        "comparison": comparison,
+        "source_counts": {
+            "journal": 8,
+            "task": 6,
+            "platform_interaction": 5,
+            "game_response": 5,
+        },
+        "summary": {
+            "initial_strength_count": 1,
+            "current_strength_count": 12,
+            "new_strength_count": 11,
+            "effort_count": 24,
+            "evidence_count": 24,
+            "top_strength": "勤奮",
+            "growth_strength": "勤奮",
+        },
+    }
+
+
+def _should_use_demo_growth_data(records: list[dict[str, Any]], initial_counts: Counter[str]) -> bool:
+    if os.getenv(DASHBOARD_DEMO_GROWTH_ENV, "").strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    return not records and not initial_counts
 
 
 def _fetch_strength_records(child_id: str) -> list[dict[str, Any]]:
@@ -282,32 +354,43 @@ def _comparison_rows(
     ]
 
 
-def _trend_rows(records: list[dict[str, Any]], initial_counts: Counter[str]) -> list[dict[str, Any]]:
+def _trend_rows(
+    records: list[dict[str, Any]],
+    initial_counts: Counter[str],
+    initial_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     if not records and not initial_counts:
         return []
 
-    seen = set(initial_counts.keys())
-    evidence_count = 0 if records else int(sum(initial_counts.values()))
+    # The trend is a child-facing growth trail: start from a low initial point,
+    # then climb as platform interactions reveal more distinct strengths.
+    seen: set[str] = set()
+    initial_strength_count = 1 if initial_counts else 0
+    effort_count = 0
     by_period: dict[str, dict[str, Any]] = {}
-    if initial_counts:
-        by_period["初始"] = {
-            "period": "初始",
-            "evidence_count": evidence_count,
-            "strength_count": len(seen),
-        }
-    for row in records:
+    initial_label = _initial_period_label(initial_rows, records)
+    by_period[initial_label] = {
+        "period": initial_label,
+        "period_order": 0,
+        "evidence_count": effort_count,
+        "effort_count": effort_count,
+        "strength_count": initial_strength_count,
+    }
+    for index, row in enumerate(records, start=1):
         strength_name = normalize_strength_name(str(row.get("strength_name") or ""))
         if not strength_name:
             continue
         seen.add(strength_name)
-        evidence_count += 1
+        effort_count += 1
         period = _period_label(row.get("created_at"))
         by_period[period] = {
             "period": period,
-            "evidence_count": evidence_count,
-            "strength_count": len(seen),
+            "period_order": index,
+            "evidence_count": effort_count,
+            "effort_count": effort_count,
+            "strength_count": min(24, initial_strength_count + len(seen)),
         }
-    return list(by_period.values())
+    return sorted(by_period.values(), key=lambda item: int(item.get("period_order") or 0))
 
 
 def _summary(
@@ -333,6 +416,7 @@ def _summary(
         "current_strength_count": current_total,
         "new_strength_count": new_strengths,
         "evidence_count": len(records),
+        "effort_count": len(records),
         "top_strength": top_strength or "還在累積中",
         "growth_strength": growth_strength or "正在慢慢展開",
         "reflection_count": _safe_count("SELECT COUNT(*) AS count FROM game_reflections WHERE child_id = %s", child_id),
@@ -407,8 +491,8 @@ def _evidence_quotes(rows: list[dict[str, Any]]) -> list[str]:
 def _reasoning_summary(strength_name: str, evidence_count: int, source_counts: Counter[str]) -> str:
     sources = "、".join(source_counts.keys())
     if evidence_count <= 1:
-        return f"目前只有 1 筆與「{strength_name}」相符的行為證據，應標示為需要更多觀察。"
-    return f"目前有 {evidence_count} 筆跨 {sources} 的具體文字或行為線索支持「{strength_name}」。"
+        return f"目前有一個與「{strength_name}」有關的成長時刻，值得好好收藏。"
+    return f"目前已從 {sources} 看見多個「{strength_name}」的努力時刻。"
 
 
 def _is_low_observation_text(text: str) -> bool:
@@ -457,3 +541,27 @@ def _period_label(value: Any) -> str:
     if len(text) >= 10:
         return text[5:10]
     return text or "今天"
+
+
+def _initial_period_label(initial_rows: list[dict[str, Any]], records: list[dict[str, Any]]) -> str:
+    value = _first_date_value(initial_rows) or _first_date_value(records)
+    formatted = _full_date_label(value)
+    return f"初始｜{formatted}" if formatted else "初始｜開始使用時"
+
+
+def _first_date_value(rows: list[dict[str, Any]]) -> Any:
+    dated_rows = [row.get("created_at") for row in rows if row.get("created_at")]
+    if not dated_rows:
+        return None
+    return sorted(dated_rows, key=lambda value: str(value))[0]
+
+
+def _full_date_label(value: Any) -> str:
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, date):
+        return value.strftime("%Y-%m-%d")
+    text = str(value or "")
+    if len(text) >= 10:
+        return text[:10]
+    return ""

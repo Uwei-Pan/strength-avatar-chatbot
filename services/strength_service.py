@@ -47,15 +47,15 @@ def get_strength_definition_by_name(strength_name: str) -> dict[str, Any] | None
     return None
 
 
-def get_via_interpretation_principles() -> list[str]:
+def get_strength_interpretation_principles() -> list[str]:
     data = load_strength_definitions()
     return list(data.get("interpretation_principles", []))
 
 
-def build_via_prompt_context() -> str:
+def build_strength_prompt_context() -> str:
     data = load_strength_definitions()
     lines = [
-        "VIA 24 項品格優勢 rubric（不是問卷，不要求學生填答）：",
+        "24 個成長亮點觀察參考（不是問卷，不要求學生填答）：",
     ]
     for item in data.get("strengths", []):
         indicators = "；".join(item.get("behavior_indicators", [])[:2])
@@ -115,11 +115,11 @@ def detect_strengths_rule_based(message: str, source: str = "platform_interactio
                     "evidence_quotes": [text[:180]],
                     "evidence_text": text,
                     "reason": f"文字中出現與「{strength_name}」相關的行動、情境或語意線索：{', '.join(matched[:4])}",
-                    "reasoning_summary": f"依 VIA 行為指標，這段內容支持「{strength_name}」的可能展現。",
+                    "reasoning_summary": f"這段內容呈現了「{strength_name}」的可能展現。",
                     "child_friendly_feedback": definition.get("child_friendly_description", ""),
                     "teacher_facing_explanation": (
-                        f"此判斷依據具體文字線索與 VIA「{strength_name}」rubric，"
-                        "不是正式心理測驗結果；若只有單一證據，建議持續觀察。"
+                        f"此觀察依據具體文字線索與「{strength_name}」的行為描述，"
+                        "不是正式心理測驗結果；若只有單一紀錄，建議持續陪伴觀察。"
                     ),
                 }
             )

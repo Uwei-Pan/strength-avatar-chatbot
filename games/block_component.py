@@ -6,9 +6,9 @@ import streamlit as st
 
 HTML = """
 <div class="block-neon-shell">
-  <div id="notice" class="block-notice">選擇下方方塊，再點棋盤放置。</div>
+  <div id="notice" class="block-notice">拖曳下方方塊到棋盤上，放開後就會放置。</div>
   <div id="buff" class="block-buff"></div>
-  <div id="board" class="block-board" aria-label="方塊消除棋盤"></div>
+  <div id="dragGhost" class="block-drag-ghost" aria-hidden="true"></div>
   <div class="block-neon-top">
     <button class="block-menu" type="button" aria-label="Menu">
       <span class="block-menu-icon"><i></i><i></i><i></i><i></i></span>
@@ -25,8 +25,12 @@ HTML = """
   </div>
   <div class="block-tray">
     <div id="pieces" class="block-pieces"></div>
-    <div class="block-hold"></div>
+    <button id="undo" class="block-undo" type="button" disabled>
+      <span class="block-undo-icon">↶</span>
+      <strong>返回上一步</strong>
+    </button>
   </div>
+  <div id="board" class="block-board" aria-label="方塊消除棋盤"></div>
 </div>
 """
 
@@ -58,7 +62,7 @@ CSS = """
 .block-token-card,
 .block-tool,
 .block-tray,
-.block-hold {
+.block-undo {
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #33263d;
@@ -174,6 +178,8 @@ CSS = """
 }
 
 .block-cell {
+  position: relative;
+  overflow: hidden;
   aspect-ratio: 1;
   border: 2px solid #582065;
   border-radius: 4px;
@@ -185,6 +191,16 @@ CSS = """
 .block-cell:hover {
   filter: brightness(1.4);
   transform: translateY(-1px);
+}
+
+.block-cell.preview-valid {
+  outline: 2px solid rgba(255, 226, 138, 0.84);
+  background: rgba(255, 226, 138, 0.16);
+}
+
+.block-cell.preview-invalid {
+  outline: 2px solid rgba(255, 97, 112, 0.9);
+  background: rgba(255, 97, 112, 0.18);
 }
 
 .block-cube {
@@ -202,6 +218,17 @@ CSS = """
   inset: 23%;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.25);
+}
+
+.block-preview-cube {
+  opacity: 0.52;
+  filter: saturate(1.15);
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.12), 0 0 18px rgba(255, 226, 138, 0.38);
+}
+
+.block-preview-cube.invalid {
+  background: rgba(255, 97, 112, 0.7) !important;
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.12), 0 0 16px rgba(255, 97, 112, 0.45);
 }
 
 .block-shape-triangle::after {
@@ -234,8 +261,8 @@ CSS = """
 
 .block-tray {
   display: grid;
-  grid-template-columns: 1fr 190px;
-  gap: 20px;
+  grid-template-columns: 1fr 170px;
+  gap: 16px;
   padding: 18px;
 }
 
@@ -250,10 +277,24 @@ CSS = """
   border: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   display: grid;
   place-items: center;
   padding: 12px;
+  user-select: none;
+  transition: transform 130ms ease, box-shadow 130ms ease, background 130ms ease;
+}
+
+.block-piece:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.block-piece.dragging {
+  cursor: grabbing;
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 0 20px rgba(255, 226, 138, 0.34);
 }
 
 .block-piece.used {
@@ -267,12 +308,59 @@ CSS = """
   box-shadow: 0 0 18px rgba(217, 49, 255, 0.42);
 }
 
+.block-undo {
+  min-height: 108px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  color: #ffe28a;
+  cursor: pointer;
+  font-weight: 1000;
+  transition: transform 130ms ease, filter 130ms ease, box-shadow 130ms ease;
+}
+
+.block-undo:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: 0 0 22px rgba(255, 226, 138, 0.28), 0 6px 0 rgba(12, 8, 20, 0.48);
+}
+
+.block-undo:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.block-undo-icon {
+  font-size: 34px;
+  line-height: 1;
+}
+
 .block-piece-grid {
   display: grid;
   place-items: center;
   justify-content: center;
   align-content: center;
   gap: 4px;
+}
+
+.block-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-999px, -999px) scale(1.08);
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.35), 0 0 22px rgba(255, 226, 138, 0.34);
+  transition: opacity 90ms ease;
+}
+
+.block-drag-ghost.is-visible {
+  opacity: 0.92;
 }
 
 .block-mini-cell {
@@ -285,7 +373,7 @@ CSS = """
   .block-neon-shell { padding: 12px; border-radius: 18px; }
   .block-neon-top { grid-template-columns: 1fr; }
   .block-tray { grid-template-columns: 1fr; }
-  .block-hold { display: none; }
+  .block-undo { min-height: 76px; }
   .block-tool { width: 120px; }
 }
 """
@@ -301,10 +389,12 @@ const colors = [
   { color: "#35a9e3", shape: "square" },
   { color: "#aadb2c", shape: "line" },
 ]
-const shapes = [
+const smallShapes = [
   { name: "單格", cells: [[0, 0]] },
   { name: "兩格直線", cells: [[0, 0], [0, 1]] },
   { name: "兩格直線", cells: [[0, 0], [1, 0]] },
+]
+const mediumShapes = [
   { name: "三格直線", cells: [[0, 0], [0, 1], [0, 2]] },
   { name: "三格直線", cells: [[0, 0], [1, 0], [2, 0]] },
   { name: "L 型", cells: [[0, 0], [1, 0], [1, 1]] },
@@ -312,6 +402,18 @@ const shapes = [
   { name: "2x2 方塊", cells: [[0, 0], [0, 1], [1, 0], [1, 1]] },
   { name: "T 型", cells: [[0, 0], [0, 1], [0, 2], [1, 1]] },
   { name: "短折線", cells: [[0, 0], [0, 1], [1, 1]] },
+  { name: "短折線", cells: [[0, 1], [1, 1], [1, 0]] },
+]
+const largeShapes = [
+  { name: "四格直線", cells: [[0, 0], [0, 1], [0, 2], [0, 3]] },
+  { name: "四格直線", cells: [[0, 0], [1, 0], [2, 0], [3, 0]] },
+  { name: "3x2 長方形", cells: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]] },
+  { name: "2x3 長方形", cells: [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]] },
+  { name: "大 L 型", cells: [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]] },
+  { name: "大 L 型", cells: [[0, 2], [1, 2], [2, 0], [2, 1], [2, 2]] },
+  { name: "大 T 型", cells: [[0, 0], [0, 1], [0, 2], [1, 1], [2, 1]] },
+  { name: "Z 型", cells: [[0, 0], [0, 1], [1, 1], [1, 2]] },
+  { name: "S 型", cells: [[0, 1], [0, 2], [1, 0], [1, 1]] },
 ]
 
 export default function (component) {
@@ -332,7 +434,7 @@ export default function (component) {
 }
 
 function createState(gameId, data) {
-  const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.2)
+  const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.25)
   return {
     gameId,
     board: Array.from({ length: size }, () => Array.from({ length: size }, () => null)),
@@ -341,14 +443,19 @@ function createState(gameId, data) {
     selected: 0,
     score: Math.max(0, Math.round(Number(data?.bonus_start_score ?? 0))),
     scoreMultiplier,
-    buffLabel: data?.buff_label ?? "",
+    rescueChances: Math.max(0, Math.min(1, Math.round(Number(data?.rescue_chances ?? 0)))),
+    buffLabel: data?.modifier_label ?? data?.buff_label ?? "",
+    abilityEvents: [],
     highScore: Number(data?.high_score ?? 0),
     serverTokens: Number(data?.tokens_earned ?? 0),
     localTokens: 0,
     sentThresholds: new Set((data?.awarded_thresholds ?? []).map(Number)),
     placements: [],
+    undoSnapshot: null,
+    dragging: null,
+    preview: null,
     gameOver: false,
-    notice: "選擇下方方塊，再點棋盤放置。",
+    notice: "拖曳下方方塊到棋盤上，放開後就會放置。",
   }
 }
 
@@ -356,7 +463,13 @@ function render(root, state, setTriggerValue) {
   root.querySelector("#score").textContent = String(state.score)
   root.querySelector("#tokens").textContent = String(state.serverTokens + state.localTokens)
   root.querySelector("#notice").textContent = state.notice
-  root.querySelector("#buff").textContent = state.buffLabel ? `本局裝備加成：${state.buffLabel}` : "本局沒有裝備加成"
+  const rescueText = state.rescueChances > 0 ? `｜換牌還有 ${state.rescueChances} 次` : ""
+  root.querySelector("#buff").textContent = state.buffLabel ? `本局助力：${state.buffLabel}${rescueText}` : "本局沒有額外助力"
+  const undoButton = root.querySelector("#undo")
+  if (undoButton) {
+    undoButton.disabled = !state.undoSnapshot || state.gameOver
+    undoButton.onclick = () => undoLastMove(state, root, setTriggerValue)
+  }
 
   const board = root.querySelector("#board")
   board.innerHTML = ""
@@ -365,12 +478,26 @@ function render(root, state, setTriggerValue) {
       const button = document.createElement("button")
       button.className = "block-cell"
       button.type = "button"
+      button.dataset.row = String(rowIndex)
+      button.dataset.col = String(colIndex)
       button.setAttribute("aria-label", `放在 ${rowIndex + 1}, ${colIndex + 1}`)
       if (cell) button.appendChild(cube(cell))
+      const previewInfo = previewForCell(state, rowIndex, colIndex)
+      if (previewInfo) {
+        button.classList.add(previewInfo.valid ? "preview-valid" : "preview-invalid")
+        if (!cell) button.appendChild(previewCube(previewInfo.piece, previewInfo.valid))
+      }
       button.onclick = () => place(state, rowIndex, colIndex, setTriggerValue, root)
       board.appendChild(button)
     })
   })
+  board.onpointermove = (event) => updateDragPreview(root, state, event, setTriggerValue)
+  board.onpointerleave = () => {
+    if (!state.dragging) return
+    state.preview = null
+    render(root, state, setTriggerValue)
+  }
+  board.onpointerup = (event) => finishDrag(root, state, event, setTriggerValue)
 
   const pieces = root.querySelector("#pieces")
   pieces.innerHTML = ""
@@ -384,23 +511,20 @@ function render(root, state, setTriggerValue) {
       button.setAttribute("aria-label", "已使用")
     } else {
       const isSelected = index === state.selected
-      button.className = `block-piece${isSelected ? " active" : ""}`
-      button.setAttribute("aria-label", `選擇 ${piece.name}`)
-      button.onclick = () => {
-        state.selected = index
-        state.notice = `已選擇：${piece.name}`
-        render(root, state, setTriggerValue)
-      }
+      const isDragging = state.dragging?.pieceIndex === index
+      button.className = `block-piece${isSelected ? " active" : ""}${isDragging ? " dragging" : ""}`
+      button.setAttribute("aria-label", `拖曳 ${piece.name}`)
+      button.onpointerdown = (event) => startDrag(root, state, index, event, setTriggerValue)
       button.appendChild(pieceGrid(piece))
     }
     pieces.appendChild(button)
   })
 }
 
-function place(state, row, col, setTriggerValue, root) {
+function place(state, row, col, setTriggerValue, root, pieceIndex = state.selected) {
   if (state.gameOver) return
 
-  const piece = state.pieces[state.selected]
+  const piece = state.pieces[pieceIndex]
   // 選到的格子已用完
   if (piece === null) {
     state.notice = "這個方塊已經用掉了，請選另一個。"
@@ -412,6 +536,8 @@ function place(state, row, col, setTriggerValue, root) {
     render(root, state, setTriggerValue)
     return
   }
+
+  state.undoSnapshot = makeUndoSnapshot(state)
 
   // 放置
   piece.cells.forEach(([r, c]) => {
@@ -437,7 +563,7 @@ function place(state, row, col, setTriggerValue, root) {
   })
 
   // 標記為已用
-  state.pieces[state.selected] = null
+  state.pieces[pieceIndex] = null
 
   // 三個都用完才補充新的三個
   if (state.pieces.every(p => p === null)) {
@@ -458,6 +584,10 @@ function place(state, row, col, setTriggerValue, root) {
   // 用剩餘可用方塊判斷 game over
   const remaining = state.pieces.filter(p => p !== null)
   if (!hasMove(state.board, remaining)) {
+    if (useRescue(state, root, setTriggerValue)) {
+      render(root, state, setTriggerValue)
+      return
+    }
     state.gameOver = true
     state.notice = "目前沒有地方可以放囉！"
     setTriggerValue("game_over", {
@@ -467,10 +597,209 @@ function place(state, row, col, setTriggerValue, root) {
       high_score: state.highScore,
       game_over_reason: "no_valid_moves",
       placements: state.placements,
+      ability_events: state.abilityEvents,
     })
   }
 
   render(root, state, setTriggerValue)
+}
+
+function startDrag(root, state, pieceIndex, event, setTriggerValue) {
+  if (state.gameOver || !state.pieces[pieceIndex]) return
+  event.preventDefault()
+  event.stopPropagation()
+  state.selected = pieceIndex
+  state.dragging = { pieceIndex }
+  state.preview = null
+  state.notice = `拖曳「${state.pieces[pieceIndex].name}」到棋盤上，看到亮亮預覽後放開。`
+  event.currentTarget?.classList?.add("dragging")
+  root.querySelector("#notice").textContent = state.notice
+  renderDragGhost(root, state, event)
+  const moveHandler = (moveEvent) => updateDragPreview(root, state, moveEvent, setTriggerValue)
+  const upHandler = (upEvent) => {
+    const view = root.ownerDocument.defaultView ?? window
+    view.removeEventListener("pointermove", moveHandler)
+    view.removeEventListener("pointerup", upHandler)
+    finishDrag(root, state, upEvent, setTriggerValue)
+  }
+  const view = root.ownerDocument.defaultView ?? window
+  view.addEventListener("pointermove", moveHandler)
+  view.addEventListener("pointerup", upHandler)
+}
+
+function updateDragPreview(root, state, event, setTriggerValue) {
+  if (!state.dragging) return
+  event.preventDefault()
+  renderDragGhost(root, state, event)
+  const cell = cellFromPointer(root, event)
+  if (!cell) {
+    if (state.preview !== null) {
+      state.preview = null
+      render(root, state, setTriggerValue)
+    }
+    return
+  }
+  const row = Number(cell.dataset.row)
+  const col = Number(cell.dataset.col)
+  const piece = state.pieces[state.dragging.pieceIndex]
+  if (!piece || !Number.isFinite(row) || !Number.isFinite(col)) return
+  const valid = canPlace(state.board, piece, row, col)
+  const nextPreview = { row, col, valid, pieceIndex: state.dragging.pieceIndex }
+  if (!samePreview(state.preview, nextPreview)) {
+    state.preview = nextPreview
+    render(root, state, setTriggerValue)
+  }
+}
+
+function finishDrag(root, state, event, setTriggerValue) {
+  if (!state.dragging) return
+  updateDragPreview(root, state, event, setTriggerValue)
+  const preview = state.preview
+  const pieceIndex = state.dragging.pieceIndex
+  state.dragging = null
+  state.preview = null
+  hideDragGhost(root)
+  if (preview?.valid) {
+    place(state, preview.row, preview.col, setTriggerValue, root, pieceIndex)
+    return
+  }
+  state.notice = preview ? "這個位置放不下喔，換個地方試試看。" : "拖到棋盤格子上，看到預覽後再放開。"
+  render(root, state, setTriggerValue)
+}
+
+function useRescue(state, root, setTriggerValue) {
+  if (state.rescueChances <= 0) return false
+  state.rescueChances -= 1
+  state.pieces = [newPiece(), newPiece(), newPiece()]
+  state.selected = 0
+  state.notice = "角色幫你換了一組方塊，再慢慢試一次。"
+  state.abilityEvents.push({
+    label: "角色換牌",
+    message: "角色在卡住時幫你換了一組方塊。",
+  })
+  return hasMove(state.board, state.pieces)
+}
+
+function makeUndoSnapshot(state) {
+  return {
+    board: cloneBoard(state.board),
+    pieces: clonePieces(state.pieces),
+    selected: state.selected,
+    score: state.score,
+    highScore: state.highScore,
+    localTokens: state.localTokens,
+    serverTokens: state.serverTokens,
+    sentThresholds: Array.from(state.sentThresholds),
+    placements: state.placements.map((placement) => ({ ...placement })),
+    rescueChances: state.rescueChances,
+    abilityEvents: state.abilityEvents.map((event) => ({ ...event })),
+    notice: state.notice,
+  }
+}
+
+function undoLastMove(state, root, setTriggerValue) {
+  const snapshot = state.undoSnapshot
+  if (!snapshot) {
+    state.notice = "目前沒有可以返回的步驟。"
+    render(root, state, setTriggerValue)
+    return
+  }
+  const snapshotThresholds = new Set(snapshot.sentThresholds)
+  const revertedThresholds = Array.from(state.sentThresholds).filter((threshold) => !snapshotThresholds.has(threshold))
+  state.board = cloneBoard(snapshot.board)
+  state.pieces = clonePieces(snapshot.pieces)
+  state.selected = snapshot.selected
+  state.score = snapshot.score
+  state.highScore = snapshot.highScore
+  state.localTokens = snapshot.localTokens
+  state.serverTokens = snapshot.serverTokens
+  state.sentThresholds = new Set(snapshot.sentThresholds)
+  state.placements = snapshot.placements.map((placement) => ({ ...placement }))
+  state.rescueChances = snapshot.rescueChances
+  state.abilityEvents = snapshot.abilityEvents.map((event) => ({ ...event }))
+  state.dragging = null
+  state.preview = null
+  state.gameOver = false
+  state.undoSnapshot = null
+  state.notice = "已返回上一步，可以重新試一個位置。"
+  setTriggerValue("undo_move", {
+    game_id: state.gameId,
+    game_type: "block_puzzle",
+    score: state.score,
+    high_score: state.highScore,
+    placements: state.placements,
+    tokens_earned: state.serverTokens + state.localTokens,
+    awarded_thresholds: Array.from(state.sentThresholds),
+    reverted_thresholds: revertedThresholds,
+  })
+  render(root, state, setTriggerValue)
+}
+
+function cloneBoard(board) {
+  return board.map((row) => row.map((cell) => (cell ? { ...cell } : null)))
+}
+
+function clonePieces(pieces) {
+  return pieces.map((piece) => piece ? { ...piece, cells: piece.cells.map(([row, col]) => [row, col]) } : null)
+}
+
+function previewForCell(state, row, col) {
+  const preview = state.preview
+  if (!preview) return null
+  const piece = state.pieces[preview.pieceIndex]
+  if (!piece) return null
+  const hit = piece.cells.some(([r, c]) => preview.row + r === row && preview.col + c === col)
+  return hit ? { ...preview, piece } : null
+}
+
+function samePreview(a, b) {
+  if (!a || !b) return a === b
+  return a.row === b.row && a.col === b.col && a.valid === b.valid && a.pieceIndex === b.pieceIndex
+}
+
+function cellFromPointer(root, event) {
+  const board = root.querySelector("#board")
+  if (!board) return null
+  const boardRect = board.getBoundingClientRect()
+  if (
+    event.clientX < boardRect.left ||
+    event.clientX > boardRect.right ||
+    event.clientY < boardRect.top ||
+    event.clientY > boardRect.bottom
+  ) {
+    return null
+  }
+
+  const cells = Array.from(board.querySelectorAll(".block-cell"))
+  return cells.find((cell) => {
+    const rect = cell.getBoundingClientRect()
+    return (
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    )
+  }) ?? null
+}
+
+function renderDragGhost(root, state, event) {
+  const ghost = root.querySelector("#dragGhost")
+  const piece = state.pieces[state.dragging?.pieceIndex]
+  if (!ghost || !piece) return
+  if (!ghost.dataset.pieceId || ghost.dataset.pieceId !== piece.id) {
+    ghost.innerHTML = ""
+    ghost.appendChild(pieceGrid(piece))
+    ghost.dataset.pieceId = piece.id
+  }
+  ghost.classList.add("is-visible")
+  ghost.style.transform = `translate(${event.clientX + 14}px, ${event.clientY + 14}px) scale(1.08)`
+}
+
+function hideDragGhost(root) {
+  const ghost = root.querySelector("#dragGhost")
+  if (!ghost) return
+  ghost.classList.remove("is-visible")
+  ghost.style.transform = "translate(-999px, -999px) scale(1.08)"
 }
 
 function maybeAwardToken(state, setTriggerValue) {
@@ -491,7 +820,9 @@ function addScore(state, basePoints) {
 }
 
 function newPiece() {
-  const shape = shapes[Math.floor(Math.random() * shapes.length)]
+  const roll = Math.random()
+  const pool = roll < 0.20 ? smallShapes : roll < 0.55 ? mediumShapes : largeShapes
+  const shape = pool[Math.floor(Math.random() * pool.length)]
   const look = colors[Math.floor(Math.random() * colors.length)]
   return {
     id: Math.random().toString(16).slice(2),
@@ -552,6 +883,13 @@ function cube(cell) {
   return node
 }
 
+function previewCube(piece, valid) {
+  const node = cube({ color: piece.color, shape: piece.shape })
+  node.classList.add("block-preview-cube")
+  if (!valid) node.classList.add("invalid")
+  return node
+}
+
 function pieceGrid(piece) {
   const maxRow = Math.max(...piece.cells.map(([r]) => r))
   const maxCol = Math.max(...piece.cells.map(([, c]) => c))
@@ -593,12 +931,15 @@ def neon_block_puzzle_game(
     key: str,
     on_game_over_change: Callable[[], None] | None = None,
     on_token_award_change: Callable[[], None] | None = None,
+    on_undo_move_change: Callable[[], None] | None = None,
 ):
     if on_game_over_change is None:
         on_game_over_change = lambda: None
     if on_token_award_change is None:
         on_token_award_change = lambda: None
-    buff = state.get("active_buff") or {}
+    if on_undo_move_change is None:
+        on_undo_move_change = lambda: None
+    modifiers = state.get("active_modifiers") or state.get("active_buff") or {}
 
     return _BLOCK_COMPONENT(
         key=key,
@@ -607,10 +948,13 @@ def neon_block_puzzle_game(
             "high_score": int(state.get("high_score", 0)),
             "tokens_earned": int(state.get("tokens_earned", 0)),
             "awarded_thresholds": state.get("awarded_thresholds", []),
-            "score_multiplier": float(buff.get("score_multiplier") or 1.0),
-            "bonus_start_score": int(buff.get("bonus_start_score") or 0),
-            "buff_label": buff.get("buff_label") if buff.get("applies") else "",
+            "score_multiplier": float(modifiers.get("score_multiplier") or 1.0),
+            "bonus_start_score": int(modifiers.get("bonus_start_score") or 0),
+            "rescue_chances": int(modifiers.get("rescue_chances") or 0),
+            "modifier_label": modifiers.get("summary_label") if modifiers.get("applies") else "",
+            "buff_label": modifiers.get("buff_label") if modifiers.get("applies") else "",
         },
         on_game_over_change=on_game_over_change,
         on_token_award_change=on_token_award_change,
+        on_undo_move_change=on_undo_move_change,
     )

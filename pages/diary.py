@@ -23,7 +23,7 @@ def render() -> None:
         """
         <div class="kid-hero">
             <p class="kid-hero-title">心情日記</p>
-            <p class="kid-hero-copy">記下今天的感覺和努力，AI 夥伴會陪你一起看見優勢。</p>
+            <p class="kid-hero-copy">記下今天的感覺和努力，小幫手會陪你一起看見優勢。</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -57,7 +57,7 @@ def render() -> None:
                     st.warning("智慧小幫手暫時連不上，先用練習回覆陪你整理。")
                 st.markdown(f"**小幫手：** {result['reply_to_child']}")
                 if result["detected_strengths"]:
-                    st.write("這篇日記可能看到：")
+                    st.write("這篇日記裡有一些亮點：")
                     _render_strength_chips(result["detected_strengths"])
 
     st.markdown('<p class="kid-section-title">最近的日記</p>', unsafe_allow_html=True)

@@ -230,8 +230,9 @@ function createGame(gameId, data) {
   const width = 760
   const height = 480
   const head = { x: 180, y: 240 }
-  const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.2)
-  const speedMultiplier = clamp(Number(data?.speed_multiplier ?? 1), 0.82, 1.05)
+  const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.25)
+  const speedMultiplier = clamp(Number(data?.speed_multiplier ?? 1), 0.78, 1.08)
+  const shieldCharges = Math.max(0, Math.min(1, Math.round(Number(data?.shield_charges ?? 0))))
   const state = {
     gameId,
     width,
@@ -242,7 +243,11 @@ function createGame(gameId, data) {
     speed: 2.25 * speedMultiplier,
     scoreMultiplier,
     speedMultiplier,
-    buffLabel: data?.buff_label ?? "",
+    turnRate: clamp(Number(data?.turn_rate ?? 0.09), 0.065, 0.09),
+    shieldCharges,
+    strengthFruitBonus: Math.max(0, Math.min(15, Math.round(Number(data?.strength_fruit_bonus ?? 0)))),
+    buffLabel: data?.modifier_label ?? data?.buff_label ?? "",
+    abilityEvents: [],
     radius: 11,
     maxPoints: 58,
     points: [],
@@ -266,7 +271,7 @@ function createGame(gameId, data) {
 }
 
 function update(state, setTriggerValue) {
-  state.angle = turnToward(state.angle, state.targetAngle, 0.09)
+  state.angle = turnToward(state.angle, state.targetAngle, state.turnRate)
   state.head.x += Math.cos(state.angle) * state.speed
   state.head.y += Math.sin(state.angle) * state.speed
   state.points.unshift({ x: state.head.x, y: state.head.y })
@@ -279,12 +284,14 @@ function update(state, setTriggerValue) {
     state.head.x > state.width - margin ||
     state.head.y > state.height - margin
   ) {
+    if (useShield(state, "hit_wall")) return
     finish(state, "hit_wall", setTriggerValue)
     return
   }
 
   for (let index = 28; index < state.points.length; index += 1) {
     if (distance(state.head, state.points[index]) < state.radius * 1.45) {
+      if (useShield(state, "hit_self")) return
       finish(state, "hit_self", setTriggerValue)
       return
     }
@@ -381,7 +388,8 @@ function draw(ctx, state, scoreNode, lengthNode, tokenNode, buffNode, overlay) {
   scoreNode.textContent = String(state.score)
   lengthNode.textContent = String(Math.max(3, Math.round(state.maxPoints / 18)))
   tokenNode.textContent = String(state.serverTokens + state.localTokens)
-  buffNode.textContent = state.buffLabel ? `本局裝備加成：${state.buffLabel}` : "本局沒有裝備加成"
+  const shieldText = state.shieldCharges > 0 ? `｜守護還有 ${state.shieldCharges} 次` : ""
+  buffNode.textContent = state.buffLabel ? `本局助力：${state.buffLabel}${shieldText}` : "本局沒有額外助力"
 
   if (state.gameOver) {
     const label = state.reason === "hit_self" ? "你撞到自己了！" : "你撞到牆壁了！"
@@ -424,6 +432,7 @@ function finish(state, reason, setTriggerValue) {
     game_over_reason: reason,
     fruits_eaten: state.fruits,
     strength_summary: strengthSummary,
+    ability_events: state.abilityEvents,
   })
 }
 
@@ -449,10 +458,28 @@ function spawnStrengthFruit(state) {
     vy: Math.sin(angle) * 1.35,
     radius: 16,
     strength: strengths[Math.floor(Math.random() * strengths.length)],
-    points: 40,
+    points: 40 + Math.max(0, Number(state.strengthFruitBonus ?? 0)),
     color: palette[Math.floor(Math.random() * palette.length)],
     pulse: Math.random() * Math.PI * 2,
   }
+}
+
+function useShield(state, reason) {
+  if (state.shieldCharges <= 0) return false
+  state.shieldCharges -= 1
+  state.abilityEvents.push({
+    reason,
+    label: "角色守護",
+    message: reason === "hit_self" ? "角色守護了你一次，幫你避開撞到自己。" : "角色守護了你一次，幫你回到安全的位置。",
+  })
+  state.head = { x: state.width / 2, y: state.height / 2 }
+  state.angle = 0
+  state.targetAngle = 0
+  state.points = []
+  for (let index = 0; index < 46; index += 1) {
+    state.points.push({ x: state.head.x - index * 4, y: state.head.y })
+  }
+  return true
 }
 
 function moveStrengthFruit(state) {
@@ -540,7 +567,7 @@ def slither_snake_game(
         on_game_over_change = lambda: None
     if on_token_award_change is None:
         on_token_award_change = lambda: None
-    buff = state.get("active_buff") or {}
+    modifiers = state.get("active_modifiers") or state.get("active_buff") or {}
 
     return _SLITHER_COMPONENT(
         key=key,
@@ -548,10 +575,14 @@ def slither_snake_game(
             "game_id": state["game_id"],
             "tokens_earned": int(state.get("tokens_earned", 0)),
             "awarded_thresholds": state.get("awarded_thresholds", []),
-            "score_multiplier": float(buff.get("score_multiplier") or 1.0),
-            "speed_multiplier": float(buff.get("speed_multiplier") or 1.0),
-            "bonus_start_score": int(buff.get("bonus_start_score") or 0),
-            "buff_label": buff.get("buff_label") if buff.get("applies") else "",
+            "score_multiplier": float(modifiers.get("score_multiplier") or 1.0),
+            "speed_multiplier": float(modifiers.get("speed_multiplier") or 1.0),
+            "bonus_start_score": int(modifiers.get("bonus_start_score") or 0),
+            "shield_charges": int(modifiers.get("shield_charges") or 0),
+            "turn_rate": float(modifiers.get("turn_rate") or 0.09),
+            "strength_fruit_bonus": int(modifiers.get("strength_fruit_bonus") or 0),
+            "modifier_label": modifiers.get("summary_label") if modifiers.get("applies") else "",
+            "buff_label": modifiers.get("buff_label") if modifiers.get("applies") else "",
         },
         on_game_over_change=on_game_over_change,
         on_token_award_change=on_token_award_change,
