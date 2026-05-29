@@ -54,6 +54,20 @@ CREATE TABLE IF NOT EXISTS chat_logs (
     INDEX idx_chat_logs_child_created (child_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    session_id VARCHAR(64) PRIMARY KEY,
+    child_id VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP NULL,
+    closed_at TIMESTAMP NULL,
+    messages_json JSON NULL,
+    token_events_json JSON NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_chat_sessions_child
+        FOREIGN KEY (child_id) REFERENCES children(child_id)
+        ON DELETE CASCADE,
+    INDEX idx_chat_sessions_child_closed (child_id, closed_at, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS token_transactions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     child_id VARCHAR(64) NOT NULL,

@@ -23,6 +23,7 @@ HTML = """
       <strong id="tokens">0</strong>
     </div>
   </div>
+  <div id="board" class="block-board" aria-label="方塊消除棋盤"></div>
   <div class="block-tray">
     <div id="pieces" class="block-pieces"></div>
     <button id="undo" class="block-undo" type="button" disabled>
@@ -30,16 +31,15 @@ HTML = """
       <strong>返回上一步</strong>
     </button>
   </div>
-  <div id="board" class="block-board" aria-label="方塊消除棋盤"></div>
 </div>
 """
 
 CSS = """
 .block-neon-shell {
-  width: min(100%, 760px);
-  margin: 0 auto 20px;
-  padding: 20px;
-  border-radius: 24px;
+  width: min(100%, 660px);
+  margin: 0 auto 10px;
+  padding: 12px;
+  border-radius: 20px;
   color: #f7eaff;
   background:
     radial-gradient(circle at 18% 20%, rgba(180, 41, 255, 0.16), transparent 32%),
@@ -52,9 +52,9 @@ CSS = """
 .block-neon-top {
   display: grid;
   grid-template-columns: 1fr 1.5fr 1fr;
-  gap: 14px;
+  gap: 8px;
   align-items: center;
-  margin: 14px 0 18px;
+  margin: 8px 0 10px;
 }
 
 .block-menu,
@@ -70,70 +70,70 @@ CSS = """
 }
 
 .block-menu {
-  height: 76px;
+  height: 52px;
   display: flex;
-  gap: 14px;
+  gap: 8px;
   align-items: center;
   justify-content: center;
   color: #cf29f4;
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 1000;
   cursor: default;
 }
 
 .block-menu-icon {
   display: grid;
-  grid-template-columns: repeat(2, 18px);
-  gap: 4px;
+  grid-template-columns: repeat(2, 12px);
+  gap: 3px;
 }
 
 .block-menu-icon i {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
   background: #ca27ef;
   box-shadow: 0 0 10px rgba(221, 44, 255, 0.55);
 }
 
 .block-menu-icon i:nth-child(4) {
   background: transparent;
-  border: 3px solid #ca27ef;
+  border: 2px solid #ca27ef;
 }
 
 .block-score-card {
-  height: 88px;
+  height: 58px;
   display: grid;
   place-items: center;
 }
 
 .block-score-card span {
   color: #ad36c8;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .block-score-card strong {
   color: #d931ff;
-  font-size: clamp(42px, 8vw, 66px);
+  font-size: clamp(30px, 5vw, 42px);
   line-height: 0.9;
   text-shadow: 0 0 16px rgba(217, 49, 255, 0.42);
 }
 
 .block-token-card {
-  height: 72px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
   color: #ffc13a;
-  font-size: 26px;
+  font-size: 20px;
 }
 
 .block-coin {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   color: #ff9f2d;
   background: #ffe28a;
@@ -141,35 +141,38 @@ CSS = """
 }
 
 .block-notice {
-  min-height: 24px;
-  margin: 0 4px 8px;
+  min-height: 18px;
+  margin: 0 3px 5px;
   color: #d9a8e7;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
 }
 
 .block-buff {
-  min-height: 28px;
-  margin: 0 4px 10px;
+  min-height: 24px;
+  margin: 0 3px 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
   color: #ffe28a;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
+  white-space: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .block-board {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  gap: 3px;
-  padding: 10px;
-  border-radius: 20px;
-  border: 4px solid #b72dec;
+  gap: 2px;
+  padding: 7px;
+  border-radius: 16px;
+  border: 3px solid #b72dec;
   background: #15071c;
   box-shadow:
     0 0 0 3px rgba(255, 69, 221, 0.62),
@@ -181,7 +184,7 @@ CSS = """
   position: relative;
   overflow: hidden;
   aspect-ratio: 1;
-  border: 2px solid #582065;
+  border: 1px solid #582065;
   border-radius: 4px;
   background: rgba(23, 4, 29, 0.82);
   cursor: pointer;
@@ -261,19 +264,20 @@ CSS = """
 
 .block-tray {
   display: grid;
-  grid-template-columns: 1fr 170px;
-  gap: 16px;
-  padding: 18px;
+  grid-template-columns: 1fr 132px;
+  gap: 10px;
+  padding: 10px;
+  margin-top: 10px;
 }
 
 .block-pieces {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
+  gap: 10px;
 }
 
 .block-piece {
-  min-height: 108px;
+  min-height: 76px;
   border: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
@@ -281,7 +285,7 @@ CSS = """
   touch-action: none;
   display: grid;
   place-items: center;
-  padding: 12px;
+  padding: 8px;
   user-select: none;
   transition: transform 130ms ease, box-shadow 130ms ease, background 130ms ease;
 }
@@ -309,7 +313,7 @@ CSS = """
 }
 
 .block-undo {
-  min-height: 108px;
+  min-height: 76px;
   display: grid;
   place-items: center;
   align-content: center;
@@ -332,7 +336,7 @@ CSS = """
 }
 
 .block-undo-icon {
-  font-size: 34px;
+  font-size: 26px;
   line-height: 1;
 }
 
@@ -365,16 +369,48 @@ CSS = """
 
 .block-mini-cell {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: var(--block-mini-size, 28px);
+  height: var(--block-mini-size, 28px);
 }
 
 @media (max-width: 700px) {
-  .block-neon-shell { padding: 12px; border-radius: 18px; }
-  .block-neon-top { grid-template-columns: 1fr; }
+  .block-neon-shell { --block-mini-size: 24px; padding: 10px; border-radius: 18px; }
+  .block-neon-top { grid-template-columns: 0.9fr 1.2fr 0.9fr; gap: 6px; }
   .block-tray { grid-template-columns: 1fr; }
+  .block-pieces { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .block-piece { min-height: 82px; padding: 8px; }
   .block-undo { min-height: 76px; }
   .block-tool { width: 120px; }
+  .block-mini-cell { width: 24px; height: 24px; }
+}
+
+@media (max-width: 430px) {
+  .block-neon-shell {
+    --block-mini-size: 22px;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+  .block-score-card { height: 54px; }
+  .block-score-card strong { font-size: 32px; }
+  .block-menu,
+  .block-token-card { height: 50px; font-size: 18px; }
+  .block-board {
+    gap: 2px;
+    padding: 7px;
+    border-width: 3px;
+    border-radius: 16px;
+  }
+  .block-cell { border-width: 1px; }
+  .block-tray { padding: 10px; gap: 10px; }
+  .block-pieces { grid-template-columns: 1fr; }
+  .block-piece {
+    min-height: 78px;
+    padding: 8px;
+  }
+  .block-mini-cell { width: 22px; height: 22px; }
+  .block-notice,
+  .block-buff { font-size: 12px; }
 }
 """
 
@@ -895,8 +931,8 @@ function pieceGrid(piece) {
   const maxCol = Math.max(...piece.cells.map(([, c]) => c))
   const grid = document.createElement("div")
   grid.className = "block-piece-grid"
-  grid.style.gridTemplateColumns = `repeat(${maxCol + 1}, 28px)`
-  grid.style.gridTemplateRows = `repeat(${maxRow + 1}, 28px)`
+  grid.style.gridTemplateColumns = `repeat(${maxCol + 1}, var(--block-mini-size, 28px))`
+  grid.style.gridTemplateRows = `repeat(${maxRow + 1}, var(--block-mini-size, 28px))`
   for (let row = 0; row <= maxRow; row += 1) {
     for (let col = 0; col <= maxCol; col += 1) {
       const cell = document.createElement("span")

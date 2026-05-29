@@ -25,17 +25,17 @@ HTML = """
     </div>
   </div>
   <div id="buff" class="slither-buff"></div>
-  <div class="slither-help">使用方向鍵或 WASD 轉向。小光點基礎 +10，會移動的大顆優勢果實基礎 +40。</div>
+  <div class="slither-help">手機可用手指點按或拖曳操控；電腦可用方向鍵、WASD 或滑鼠轉向。小光點基礎 +10，大顆優勢果實基礎 +40。</div>
 </div>
 """
 
 CSS = """
 .slither-shell {
   position: relative;
-  width: min(100%, 840px);
+  width: min(100%, 720px);
   margin: 0 auto;
-  padding: 14px;
-  border-radius: 24px;
+  padding: 10px;
+  border-radius: 20px;
   background:
     radial-gradient(circle at 18% 18%, rgba(255, 209, 102, 0.22), transparent 28%),
     radial-gradient(circle at 84% 20%, rgba(126, 240, 161, 0.16), transparent 30%),
@@ -49,14 +49,14 @@ CSS = """
 .slither-topbar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .slither-topbar > div {
   min-width: 0;
-  padding: 10px 12px;
-  border-radius: 16px;
+  padding: 7px 10px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(8px);
@@ -71,17 +71,19 @@ CSS = """
 }
 
 .slither-topbar strong {
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1.1;
 }
 
 #slither-canvas {
   display: block;
   width: 100%;
-  aspect-ratio: 19 / 12;
-  border-radius: 20px;
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
   background: #090e27;
   outline: 4px solid rgba(255, 255, 255, 0.16);
+  touch-action: none;
+  user-select: none;
 }
 
 .slither-canvas-wrap {
@@ -89,26 +91,29 @@ CSS = """
 }
 
 .slither-help {
-  margin-top: 10px;
+  margin-top: 6px;
   color: rgba(247, 251, 255, 0.78);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   text-align: center;
 }
 
 .slither-buff {
-  margin-top: 10px;
-  min-height: 28px;
+  margin-top: 7px;
+  min-height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
   color: #fff7a8;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
+  white-space: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .slither-overlay {
@@ -134,6 +139,29 @@ CSS = """
   .slither-topbar > div { padding: 8px; border-radius: 12px; }
   .slither-topbar strong { font-size: 18px; }
   .slither-overlay { inset: 0; }
+}
+
+@media (max-width: 430px) {
+  .slither-shell {
+    width: 100%;
+    padding: 8px;
+  }
+  #slither-canvas {
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    outline-width: 3px;
+  }
+  .slither-label {
+    font-size: 11px;
+  }
+  .slither-help {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .slither-buff {
+    border-radius: 14px;
+    text-align: center;
+  }
 }
 """
 
@@ -163,21 +191,43 @@ export default function (component) {
     }
     instance.serverTokens = incomingTokens
   }
+  instance.paused = Boolean(data?.paused)
 
   const resizeCanvas = () => {
     const rect = canvas.getBoundingClientRect()
     const ratio = window.devicePixelRatio || 1
-    canvas.width = Math.floor(rect.width * ratio)
-    canvas.height = Math.floor(rect.width * 12 / 19 * ratio)
+    const displayWidth = Math.max(280, rect.width)
+    const displayHeight = Math.max(220, rect.height || rect.width * 9 / 16)
+    const shouldWaitForTouch = isTouchPlayfield(displayWidth)
+    canvas.width = Math.floor(displayWidth * ratio)
+    canvas.height = Math.floor(displayHeight * ratio)
     instance.scale = ratio
-    instance.width = canvas.width / ratio
-    instance.height = canvas.height / ratio
+    instance.width = displayWidth
+    instance.height = displayHeight
+    if (instance.needsResizeReset) {
+      resetPlayfield(instance)
+      instance.waitingForTouch = shouldWaitForTouch
+      instance.needsResizeReset = false
+    } else {
+      keepInsidePlayfield(instance)
+      if (!shouldWaitForTouch) instance.waitingForTouch = false
+    }
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
   }
   resizeCanvas()
 
   const keyHandler = (event) => {
     const key = event.key.toLowerCase()
+    if (key === " " || key === "spacebar") {
+      event.preventDefault()
+      instance.paused = !instance.paused
+      setTriggerValue("pause_toggle", {
+        game_id: instance.gameId,
+        game_type: "snake",
+        paused: instance.paused,
+      })
+      return
+    }
     const map = {
       arrowup: -Math.PI / 2,
       w: -Math.PI / 2,
@@ -190,24 +240,48 @@ export default function (component) {
     }
     if (key in map) {
       event.preventDefault()
+      instance.waitingForTouch = false
       instance.targetAngle = map[key]
     }
   }
 
   const pointerHandler = (event) => {
+    event.preventDefault()
     const rect = canvas.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
+    instance.waitingForTouch = false
     instance.targetAngle = Math.atan2(y - instance.head.y, x - instance.head.x)
   }
 
+  const pointerDownHandler = (event) => {
+    pointerHandler(event)
+    canvas.setPointerCapture?.(event.pointerId)
+  }
+
+  const pointerUpHandler = (event) => {
+    canvas.releasePointerCapture?.(event.pointerId)
+  }
+
+  if (instance.cleanup) instance.cleanup()
   window.addEventListener("keydown", keyHandler)
   window.addEventListener("resize", resizeCanvas)
+  canvas.addEventListener("pointerdown", pointerDownHandler)
   canvas.addEventListener("pointermove", pointerHandler)
+  canvas.addEventListener("pointerup", pointerUpHandler)
+  canvas.addEventListener("pointercancel", pointerUpHandler)
+  instance.cleanup = () => {
+    window.removeEventListener("keydown", keyHandler)
+    window.removeEventListener("resize", resizeCanvas)
+    canvas.removeEventListener("pointerdown", pointerDownHandler)
+    canvas.removeEventListener("pointermove", pointerHandler)
+    canvas.removeEventListener("pointerup", pointerUpHandler)
+    canvas.removeEventListener("pointercancel", pointerUpHandler)
+  }
 
   const tick = () => {
     if (!instances.has(parentElement)) return
-    if (!instance.gameOver) {
+    if (!instance.gameOver && !instance.waitingForTouch && !instance.paused) {
       update(instance, setTriggerValue)
     }
     draw(ctx, instance, scoreNode, lengthNode, tokenNode, buffNode, overlay)
@@ -218,9 +292,8 @@ export default function (component) {
   }
 
   return () => {
-    window.removeEventListener("keydown", keyHandler)
-    window.removeEventListener("resize", resizeCanvas)
-    canvas.removeEventListener("pointermove", pointerHandler)
+    instance.cleanup?.()
+    instance.cleanup = null
     if (instance.frame) window.cancelAnimationFrame(instance.frame)
     instance.frame = null
   }
@@ -229,7 +302,7 @@ export default function (component) {
 function createGame(gameId, data) {
   const width = 760
   const height = 480
-  const head = { x: 180, y: 240 }
+  const head = { x: width / 2, y: height / 2 }
   const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.25)
   const speedMultiplier = clamp(Number(data?.speed_multiplier ?? 1), 0.78, 1.08)
   const shieldCharges = Math.max(0, Math.min(1, Math.round(Number(data?.shield_charges ?? 0))))
@@ -261,6 +334,10 @@ function createGame(gameId, data) {
     frame: null,
     gameOver: false,
     reason: "",
+    needsResizeReset: true,
+    waitingForTouch: false,
+    paused: Boolean(data?.paused),
+    cleanup: null,
   }
   for (let index = 0; index < 46; index += 1) {
     state.points.push({ x: head.x - index * 4, y: head.y })
@@ -268,6 +345,38 @@ function createGame(gameId, data) {
   for (let index = 0; index < 28; index += 1) spawnFood(state)
   state.strengthFruit = spawnStrengthFruit(state)
   return state
+}
+
+function resetPlayfield(state) {
+  state.head = { x: state.width / 2, y: state.height / 2 }
+  state.angle = 0
+  state.targetAngle = 0
+  state.points = []
+  for (let index = 0; index < 46; index += 1) {
+    state.points.push({ x: state.head.x - index * 4, y: state.head.y })
+  }
+  state.foods = []
+  for (let index = 0; index < 28; index += 1) spawnFood(state)
+  state.strengthFruit = spawnStrengthFruit(state)
+}
+
+function keepInsidePlayfield(state) {
+  const margin = state.radius + 8
+  state.head.x = Math.max(margin, Math.min(state.width - margin, state.head.x))
+  state.head.y = Math.max(margin, Math.min(state.height - margin, state.head.y))
+  state.points = state.points.map((point) => ({
+    x: Math.max(margin, Math.min(state.width - margin, point.x)),
+    y: Math.max(margin, Math.min(state.height - margin, point.y)),
+  }))
+  for (const food of state.foods) {
+    food.x = Math.max(24, Math.min(state.width - 24, food.x))
+    food.y = Math.max(24, Math.min(state.height - 24, food.y))
+  }
+  if (state.strengthFruit) {
+    const fruitMargin = state.strengthFruit.radius + 12
+    state.strengthFruit.x = Math.max(fruitMargin, Math.min(state.width - fruitMargin, state.strengthFruit.x))
+    state.strengthFruit.y = Math.max(fruitMargin, Math.min(state.height - fruitMargin, state.strengthFruit.y))
+  }
 }
 
 function update(state, setTriggerValue) {
@@ -394,6 +503,12 @@ function draw(ctx, state, scoreNode, lengthNode, tokenNode, buffNode, overlay) {
   if (state.gameOver) {
     const label = state.reason === "hit_self" ? "你撞到自己了！" : "你撞到牆壁了！"
     overlay.innerHTML = `<div><div style="font-size:30px;margin-bottom:8px;">Game Over</div><div>${label}</div></div>`
+    overlay.classList.remove("hidden")
+  } else if (state.paused) {
+    overlay.innerHTML = `<div><div style="font-size:24px;margin-bottom:8px;">遊戲已暫停</div><div>按「繼續遊戲」或空白鍵回到這一局。</div></div>`
+    overlay.classList.remove("hidden")
+  } else if (state.waitingForTouch) {
+    overlay.innerHTML = `<div><div style="font-size:24px;margin-bottom:8px;">點一下畫面開始</div><div>用手指拖曳方向，蛇會朝手指移動。</div></div>`
     overlay.classList.remove("hidden")
   } else {
     overlay.classList.add("hidden")
@@ -545,6 +660,10 @@ function clamp(value, min, max) {
   if (!Number.isFinite(value)) return min
   return Math.max(min, Math.min(max, value))
 }
+
+function isTouchPlayfield(width) {
+  return width <= 560 || window.matchMedia?.("(pointer: coarse)")?.matches === true
+}
 """
 
 
@@ -562,11 +681,14 @@ def slither_snake_game(
     key: str,
     on_game_over_change: Callable[[], None] | None = None,
     on_token_award_change: Callable[[], None] | None = None,
+    on_pause_toggle_change: Callable[[], None] | None = None,
 ):
     if on_game_over_change is None:
         on_game_over_change = lambda: None
     if on_token_award_change is None:
         on_token_award_change = lambda: None
+    if on_pause_toggle_change is None:
+        on_pause_toggle_change = lambda: None
     modifiers = state.get("active_modifiers") or state.get("active_buff") or {}
 
     return _SLITHER_COMPONENT(
@@ -583,7 +705,9 @@ def slither_snake_game(
             "strength_fruit_bonus": int(modifiers.get("strength_fruit_bonus") or 0),
             "modifier_label": modifiers.get("summary_label") if modifiers.get("applies") else "",
             "buff_label": modifiers.get("buff_label") if modifiers.get("applies") else "",
+            "paused": bool(state.get("paused")),
         },
         on_game_over_change=on_game_over_change,
         on_token_award_change=on_token_award_change,
+        on_pause_toggle_change=on_pause_toggle_change,
     )

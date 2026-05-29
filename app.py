@@ -159,7 +159,7 @@ def _inject_style() -> None:
         [data-testid="stAppViewContainer"] .main .block-container {
             padding-top: 2.2rem;
             padding-bottom: 4rem;
-            max-width: 1120px;
+            max-width: min(1120px, calc(100vw - 2rem));
         }
 
         h1, h2, h3 {
@@ -244,6 +244,7 @@ def _inject_style() -> None:
             border-radius: 20px;
             padding: 1rem 1.1rem;
             box-shadow: var(--kid-soft-shadow);
+            min-width: 0;
         }
 
         [data-testid="stMetricLabel"] p {
@@ -268,8 +269,109 @@ def _inject_style() -> None:
             border-radius: 16px !important;
         }
 
+        [data-testid="stTextArea"] textarea {
+            padding: 0.75rem 0.9rem !important;
+            line-height: 1.55 !important;
+            color: #f8fafc !important;
+            background: #252631 !important;
+            border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        }
+
+        [data-testid="stTextArea"] textarea::placeholder {
+            color: #cbd5e1 !important;
+            opacity: 1 !important;
+        }
+
+        .stApp:has(.todo-page-scope) [data-testid="stTextInput"] input,
+        .stApp:has(.todo-page-scope) [data-testid="stTextArea"] textarea,
+        .stApp:has(.todo-page-scope) [data-testid="stNumberInput"] input,
+        .stApp:has(.todo-page-scope) [data-testid="stDateInput"] input,
+        .stApp:has(.todo-page-scope) [data-baseweb="input"] input {
+            min-height: 46px;
+            padding: 0.68rem 0.85rem !important;
+            border-radius: 16px !important;
+            border: 1px solid rgba(72, 168, 245, 0.32) !important;
+            background: #e7f5ff !important;
+            color: #24345f !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 6px 16px rgba(72, 168, 245, 0.08) !important;
+            caret-color: #0c63b8 !important;
+        }
+
+        .stApp:has(.todo-page-scope) [data-testid="stTextArea"] textarea {
+            min-height: 92px;
+            line-height: 1.55 !important;
+            resize: vertical;
+        }
+
+        .stApp:has(.todo-page-scope) [data-testid="stTextInput"] input::placeholder,
+        .stApp:has(.todo-page-scope) [data-testid="stTextArea"] textarea::placeholder {
+            color: #6b7fa7 !important;
+            opacity: 1 !important;
+        }
+
+        .stApp:has(.todo-page-scope) [data-testid="stTextInput"] input:focus,
+        .stApp:has(.todo-page-scope) [data-testid="stTextArea"] textarea:focus,
+        .stApp:has(.todo-page-scope) [data-testid="stNumberInput"] input:focus,
+        .stApp:has(.todo-page-scope) [data-testid="stDateInput"] input:focus,
+        .stApp:has(.todo-page-scope) [data-baseweb="input"] input:focus {
+            border-color: rgba(12, 99, 184, 0.58) !important;
+            box-shadow: 0 0 0 3px rgba(72, 168, 245, 0.16), 0 8px 18px rgba(72, 168, 245, 0.12) !important;
+        }
+
+        .stApp:has(.todo-page-scope) [data-testid="stForm"] {
+            background: rgba(255, 255, 255, 0.82);
+            border-color: rgba(72, 168, 245, 0.2) !important;
+        }
+
+        [data-testid="stForm"] {
+            padding: 1rem 1.05rem 0.95rem;
+        }
+
         div[data-testid="stAlert"] {
             border-radius: 18px;
+            border-width: 1px;
+        }
+
+        div[data-testid="stAlert"],
+        div[data-testid="stAlert"] * {
+            color: #334155 !important;
+            opacity: 1 !important;
+            font-weight: 800;
+        }
+
+        div[data-testid="stAlert"] p {
+            line-height: 1.55;
+        }
+
+        [data-testid="stTabs"] [role="tablist"] {
+            gap: 0.35rem;
+            border-bottom: 1px solid rgba(255, 159, 67, 0.22);
+        }
+
+        [data-testid="stTabs"] [role="tab"] {
+            padding: 0.42rem 0.85rem;
+            border-radius: 14px 14px 0 0;
+            color: #475569 !important;
+            font-weight: 900;
+            opacity: 1 !important;
+        }
+
+        [data-testid="stTabs"] [role="tab"] p,
+        [data-testid="stTabs"] [role="tab"] span {
+            color: inherit !important;
+            font-weight: 900;
+            opacity: 1 !important;
+        }
+
+        [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+            color: #c2410c !important;
+            background: rgba(255, 241, 184, 0.76);
+            box-shadow: inset 0 -3px 0 #ff6b35;
+        }
+
+        [data-testid="stTabs"] [role="tab"]:hover {
+            color: #0f2f64 !important;
+            background: rgba(255, 255, 255, 0.72);
         }
 
         .kid-hero {
@@ -305,10 +407,11 @@ def _inject_style() -> None:
             border: 1px solid var(--kid-border);
             box-shadow: var(--kid-soft-shadow);
             margin: 0.45rem 0 1rem;
+            overflow-wrap: anywhere;
         }
 
         .kid-section-title {
-            margin: 1.25rem 0 0.5rem;
+            margin: 1rem 0 0.4rem;
             font-size: 1.28rem;
             font-weight: 900;
             color: var(--kid-ink);
@@ -382,6 +485,101 @@ def _inject_style() -> None:
             padding: 0.25rem 0.55rem;
             border-radius: 999px;
             background: rgba(216, 240, 255, 0.56);
+        }
+
+        .stApp:has(.game-page-scope) [data-testid="stAppViewContainer"] .main .block-container {
+            padding-top: 0.7rem;
+            padding-bottom: 1.5rem;
+            max-width: min(980px, calc(100vw - 1.2rem));
+        }
+
+        .stApp:has(.game-page-scope) .game-compact-hero {
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.35rem;
+            border-radius: 16px;
+        }
+
+        .stApp:has(.game-page-scope) .game-compact-title {
+            font-size: 1.22rem;
+        }
+
+        .stApp:has(.game-page-scope) .game-compact-copy {
+            margin-top: 0.05rem;
+            font-size: 0.84rem;
+            line-height: 1.35;
+        }
+
+        .stApp:has(.game-page-scope) .game-token-pill {
+            padding: 0.3rem 0.58rem;
+            font-size: 0.9rem;
+        }
+
+        .stApp:has(.game-page-scope) .kid-section-title {
+            margin: 0.35rem 0 0.2rem;
+            font-size: 1.05rem;
+            line-height: 1.25;
+        }
+
+        .stApp:has(.game-page-scope) .kid-card {
+            padding: 0.62rem 0.78rem;
+            margin: 0.25rem 0 0.45rem;
+            border-radius: 16px;
+            line-height: 1.5;
+        }
+
+        .game-toolbar-buff {
+            display: flex;
+            align-items: center;
+            min-height: 34px;
+            padding: 0.3rem 0.7rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.84);
+            border: 1px solid rgba(72, 168, 245, 0.18);
+            box-shadow: 0 6px 16px rgba(95, 111, 143, 0.1);
+            color: var(--kid-muted);
+            font-size: 0.9rem;
+            font-weight: 800;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .game-toolbar-buff strong {
+            flex: 0 0 auto;
+            margin-left: 0.25rem;
+            color: var(--kid-ink);
+        }
+
+        .stApp:has(.game-page-scope) .game-status-strip {
+            flex-wrap: nowrap;
+            gap: 0.35rem;
+            margin: 0.28rem 0 0.45rem;
+            padding: 0.4rem 0.5rem;
+            border-radius: 16px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            font-size: 0.8rem;
+        }
+
+        .stApp:has(.game-page-scope) .game-status-strip span,
+        .stApp:has(.game-page-scope) .gear-buff-pill {
+            flex: 0 0 auto;
+            min-height: 26px;
+            padding: 0.18rem 0.45rem;
+            white-space: nowrap;
+            line-height: 1.2;
+        }
+
+        .stApp:has(.game-page-scope) [data-testid="stRadio"] {
+            margin-bottom: -0.25rem;
+        }
+
+        .stApp:has(.game-page-scope) .stButton button {
+            min-height: 40px;
+            border-radius: 15px !important;
         }
 
         .avatar-profile-card,
@@ -516,7 +714,9 @@ def _inject_style() -> None:
             padding: 0.8rem 0.85rem;
             margin: 0.45rem 0 1rem;
             border-radius: 28px;
-            overflow: hidden;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
             background:
                 radial-gradient(circle at 12% 14%, rgba(255, 181, 84, 0.16), transparent 30%),
                 radial-gradient(circle at 86% 18%, rgba(255, 224, 138, 0.1), transparent 28%),
@@ -1016,25 +1216,53 @@ def _inject_style() -> None:
         .chip-e { background: #d8cbff; }
         .chip-f { background: #ffd1a3; }
 
+        .shop-status-available {
+            background: #fff1b8;
+            color: #9a3412 !important;
+            border-color: rgba(255, 159, 67, 0.36);
+        }
+
+        .shop-status-owned {
+            background: #dcfce7;
+            color: #166534 !important;
+            border-color: rgba(22, 101, 52, 0.2);
+        }
+
+        .chat-message-row {
+            display: flex;
+            width: 100%;
+            margin: 0.38rem 0;
+        }
+
+        .chat-message-row.is-user {
+            justify-content: flex-end;
+        }
+
+        .chat-message-row.is-ai {
+            justify-content: flex-start;
+        }
+
         .chat-bubble {
-            width: fit-content;
-            max-width: min(760px, 92%);
-            padding: 0.85rem 1rem;
-            border-radius: 22px;
-            margin: 0.55rem 0;
-            line-height: 1.75;
+            width: max-content;
+            max-width: min(68%, 720px);
+            box-sizing: border-box;
+            padding: 0.62rem 0.85rem;
+            border-radius: 20px;
+            margin: 0;
+            line-height: 1.58;
             box-shadow: var(--kid-soft-shadow);
             border: 1px solid rgba(255, 255, 255, 0.75);
-            white-space: pre-wrap;
+            white-space: normal;
+            overflow-wrap: break-word;
+            word-break: normal;
+            color: #263052;
         }
 
         .chat-bubble-user {
-            margin-left: auto;
             background: linear-gradient(135deg, #aee0ff 0%, #9debc0 100%);
         }
 
         .chat-bubble-ai {
-            margin-right: auto;
             background: linear-gradient(135deg, #fff1b8 0%, #ffe0c2 55%, #eadfff 100%);
         }
 
@@ -1044,6 +1272,46 @@ def _inject_style() -> None:
             font-size: 0.86rem;
             font-weight: 900;
             color: rgba(47, 58, 95, 0.78);
+        }
+
+        .chat-text {
+            display: block;
+            white-space: pre-wrap;
+        }
+
+        .chat-confirm-card,
+        .game-exit-notice {
+            padding: 0.85rem 1rem;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 159, 67, 0.26);
+            box-shadow: var(--kid-soft-shadow);
+            line-height: 1.6;
+            font-weight: 900;
+        }
+
+        .chat-confirm-card {
+            margin: 0.6rem 0 0.7rem;
+            background: linear-gradient(135deg, rgba(255, 247, 214, 0.92), rgba(255, 225, 194, 0.78));
+            color: #92400e;
+        }
+
+        .game-exit-notice {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            margin: 0.65rem 0 0.85rem;
+            background: linear-gradient(135deg, rgba(220, 252, 231, 0.92), rgba(209, 250, 229, 0.78));
+            border-color: rgba(22, 101, 52, 0.18);
+            color: #166534;
+        }
+
+        .game-exit-notice .notice-mark {
+            width: 1.1rem;
+            height: 1.1rem;
+            border-radius: 999px;
+            background: #22c55e;
+            box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.72);
+            flex: 0 0 auto;
         }
 
         .prompt-category {
@@ -1147,15 +1415,72 @@ def _inject_style() -> None:
             box-shadow: none;
         }
 
+        iframe,
+        canvas,
+        svg,
+        img {
+            max-width: 100%;
+        }
+
+        [data-testid="stDataFrame"] {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @media (max-width: 900px) {
+            [data-testid="stAppViewContainer"] .main .block-container {
+                padding-top: 1.35rem;
+                max-width: calc(100vw - 1.5rem);
+            }
+
+            .kid-hero-title {
+                font-size: 1.85rem;
+            }
+
+            .growth-hero {
+                grid-template-columns: 118px minmax(0, 1fr);
+            }
+
+            .game-compact-hero {
+                align-items: flex-start;
+            }
+
+            .chat-bubble {
+                max-width: min(78%, 640px);
+            }
+        }
+
         @media (max-width: 640px) {
             [data-testid="stAppViewContainer"] .main .block-container {
-                padding-left: 1rem;
-                padding-right: 1rem;
+                padding-left: 0.85rem;
+                padding-right: 0.85rem;
+                max-width: 100vw;
+            }
+
+            [data-testid="stSidebar"] [role="radiogroup"] label,
+            .stButton button,
+            [data-testid="stFormSubmitButton"] button {
+                min-height: 48px;
+            }
+
+            .stApp:has(.game-page-scope) .stButton button {
+                min-height: 44px;
+                font-size: 0.88rem;
             }
 
             .kid-hero {
                 padding: 1rem;
                 border-radius: 22px;
+            }
+
+            .kid-hero-title,
+            h1 {
+                font-size: 1.7rem;
+                line-height: 1.2;
+            }
+
+            .kid-hero-copy {
+                font-size: 0.98rem;
             }
 
             .game-compact-hero,
@@ -1167,16 +1492,81 @@ def _inject_style() -> None:
                 display: grid;
             }
 
+            .game-compact-hero {
+                gap: 0.65rem;
+                padding: 0.85rem;
+            }
+
+            .game-compact-title {
+                font-size: 1.25rem;
+            }
+
             .game-token-pill {
                 width: fit-content;
             }
 
+            .growth-hero-visual {
+                min-height: 108px;
+            }
+
+            .avatar-profile-card {
+                gap: 0.75rem;
+            }
+
+            .character-card,
+            .outfit-card {
+                min-height: auto;
+            }
+
+            .strength-chip,
+            .kid-tag {
+                min-height: 32px;
+                font-size: 0.88rem;
+                padding: 0.3rem 0.58rem;
+            }
+
             .chat-bubble {
-                max-width: 100%;
+                max-width: 94%;
+                padding: 0.58rem 0.78rem;
+            }
+
+            .chat-message-row {
+                margin: 0.3rem 0;
+            }
+
+            .thinking-card {
+                width: 100%;
+                box-sizing: border-box;
             }
 
             .block-piece-row {
                 grid-template-columns: 1fr;
+            }
+
+            [data-testid="stTabs"] [role="tablist"] {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
+        @media (max-width: 430px) {
+            [data-testid="stAppViewContainer"] .main .block-container {
+                padding-left: 0.65rem;
+                padding-right: 0.65rem;
+            }
+
+            .kid-hero,
+            .kid-card,
+            [data-testid="stMetric"],
+            .game-over-card,
+            .game-status-strip,
+            .growth-story-card,
+            .growth-chart-card {
+                border-radius: 16px;
+            }
+
+            .growth-chart-card {
+                padding: 0.55rem;
             }
         }
         </style>

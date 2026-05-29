@@ -1,10 +1,16 @@
 .env
+.env.local
+.envc
 .venv/
 __pycache__/
 *.pyc
 .DS_Store
 .streamlit/secrets.toml
-data/chat_sessions/*.json
+data/chat_sessions/
+*.db
+*.sqlite
+*.sqlite3
+*.log
 
 # Local agent skills installed for this workspace.
 .agents/skills/*

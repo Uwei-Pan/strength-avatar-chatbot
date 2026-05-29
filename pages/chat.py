@@ -46,7 +46,7 @@ def render() -> None:
         """,
         unsafe_allow_html=True,
     )
-    st.caption(f"目前代幣：{child['tokens']}｜本次 session：{session['session_id'][:8]}")
+    st.caption(f"目前代幣：{child['tokens']}")
 
     notice = st.session_state.pop("chat_notice", None)
     if notice:
@@ -101,10 +101,10 @@ def _render_current_chat(session: dict[str, Any]) -> None:
 
 
 def _render_input(child: dict[str, Any], session: dict[str, Any]) -> None:
-    with st.form("chat_form", clear_on_submit=True, border=False):
+    with st.form("chat_form", clear_on_submit=True, border=True):
         message = st.text_area(
             "輸入本次想聊的內容",
-            height=120,
+            height=96,
             placeholder="可以告訴我今天發生的一件小事，或你的心情。例如：我今天有點生氣，因為我覺得被誤會。",
         )
         submitted = st.form_submit_button("送出給小幫手", use_container_width=True)
@@ -212,7 +212,14 @@ def _render_close_controls(child: dict[str, Any], session: dict[str, Any]) -> No
     if not st.session_state.get("chat_confirm_close"):
         return
 
-    st.warning("確定要關閉本次聊天嗎？關閉後，本次對話會儲存到歷史聊天紀錄中。")
+    st.markdown(
+        """
+        <div class="chat-confirm-card">
+            確定要關閉本次聊天嗎？關閉後，這段對話會儲存到歷史聊天紀錄中。
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     col_yes, col_no = st.columns(2)
     with col_yes:
         if st.button("是，關閉並儲存", use_container_width=True):
@@ -280,14 +287,13 @@ def _render_history(child_id: str) -> None:
     sessions = list_chat_sessions(child_id, limit=10)
     with st.expander("歷史聊天紀錄", expanded=False):
         if not sessions:
-            st.caption("目前還沒有已關閉的聊天 session。")
+            st.caption("目前還沒有歷史聊天紀錄。")
             return
         for session in sessions:
             label = _session_label(session)
             with st.container(border=True):
                 st.write(f"**{label}**")
                 st.caption(
-                    f"Session：{session.get('session_id', '')[:8]}｜"
                     f"訊息 {len(session.get('messages', []))} 則｜"
                     f"代幣 +{token_event_total(session.get('token_events', []))}"
                 )
@@ -335,11 +341,14 @@ def _render_notice(notice: dict[str, str]) -> None:
 
 def _render_bubble(role: str, name: str, content: str) -> None:
     bubble_class = "chat-bubble-user" if role == "user" else "chat-bubble-ai"
+    row_class = "is-user" if role == "user" else "is-ai"
     st.markdown(
         f"""
-        <div class="chat-bubble {bubble_class}">
-            <span class="chat-name">{escape(name)}</span>
-            {escape(str(content))}
+        <div class="chat-message-row {row_class}">
+            <div class="chat-bubble {bubble_class}">
+                <span class="chat-name">{escape(name)}</span>
+                <span class="chat-text">{escape(str(content))}</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,

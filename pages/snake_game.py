@@ -75,14 +75,15 @@ def render() -> None:
     if not child:
         st.error("請先登入。")
         return
-    
+
+    st.markdown('<div class="game-page-scope"></div>', unsafe_allow_html=True)
     st.markdown(
         f"""
         <div class="game-compact-hero">
             <div>
                 <p class="game-compact-title">優勢遊戲樂園</p>
                 <p class="game-compact-copy">
-                    開始一局需要 {GAME_START_COST} 代幣；結束後可以退出，或回答小問題再挑戰。
+                    開始一局 {GAME_START_COST} 代幣；結束後可退出或回答小問題再挑戰。
                 </p>
             </div>
             <span class="game-token-pill">目前 {int(child["tokens"])} 代幣</span>
@@ -103,7 +104,15 @@ def render() -> None:
 
     exit_notice = st.session_state.pop("game_exit_notice", None)
     if exit_notice:
-        st.success(exit_notice, icon=":material/check_circle:")
+        st.markdown(
+            f"""
+            <div class="game-exit-notice">
+                <span class="notice-mark"></span>
+                <strong>{escape(str(exit_notice))}</strong>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     current_game = st.radio(
         "選擇遊戲",
@@ -123,8 +132,6 @@ def render() -> None:
         _render_snake(child)
     else:
         _render_block_puzzle(child)
-
-    _render_game_status(child, current_game)
 
 
 def _init_state() -> None:
@@ -156,6 +163,7 @@ def _render_snake(child: dict[str, Any]) -> None:
     st.markdown('<p class="kid-section-title">貪食蛇：星光果實賽道</p>', unsafe_allow_html=True)
     if state.get("game_over") or state.get("completed"):
         _render_game_over_panel(state, "snake")
+        _render_game_status(child, "snake")
         return
 
     if not state["started"]:
@@ -180,13 +188,16 @@ def _render_snake(child: dict[str, Any]) -> None:
         return
 
     _render_running_toolbar("snake", state)
+    _render_game_status(child, "snake")
 
     result = slither_snake_game(
         state,
         key=f"slither_{state['game_id']}",
         on_game_over_change=lambda: None,
         on_token_award_change=lambda: None,
+        on_pause_toggle_change=lambda: None,
     )
+    _handle_snake_pause_event(state, _component_value(result, "pause_toggle"))
     _handle_snake_token_event(child_id, state, _component_value(result, "token_award"))
     _handle_snake_game_over(child_id, state, _component_value(result, "game_over"))
 
@@ -213,6 +224,7 @@ def _new_snake_state(
         "final_summary": "",
         "game_over": False,
         "game_over_reason": "",
+        "paused": False,
         "saved": False,
         "tokens_spent": int(tokens_spent),
         "active_modifiers": modifiers,
@@ -236,6 +248,16 @@ def _handle_snake_token_event(child_id: str, state: dict[str, Any], payload: Any
     st.session_state["snake_game"] = state
 
 
+def _handle_snake_pause_event(state: dict[str, Any], payload: Any) -> None:
+    if not isinstance(payload, dict):
+        return
+    if payload.get("game_id") != state["game_id"] or state.get("game_over"):
+        return
+    state["paused"] = bool(payload.get("paused"))
+    st.session_state["snake_game"] = state
+    st.rerun()
+
+
 def _handle_snake_game_over(child_id: str, state: dict[str, Any], payload: Any) -> None:
     if not isinstance(payload, dict):
         return
@@ -253,6 +275,7 @@ def _handle_snake_game_over(child_id: str, state: dict[str, Any], payload: Any) 
     state["game_over_reason"] = str(payload.get("game_over_reason") or "hit_wall")
     state["completed"] = True
     state["started"] = False
+    state["paused"] = False
     state["final_summary"] = _snake_strength_summary(state.get("all_fruits_eaten", []))
     _save_finished_game(child_id, state, "snake", state.get("all_fruits_eaten", []))
     st.session_state["snake_game"] = state
@@ -269,6 +292,7 @@ def _render_block_puzzle(child: dict[str, Any]) -> None:
     st.markdown('<p class="kid-section-title">方塊消除：彩色積木挑戰</p>', unsafe_allow_html=True)
     if state.get("game_over") or state.get("completed"):
         _render_game_over_panel(state, "block_puzzle")
+        _render_game_status(child, "block_puzzle")
         return
 
     if not state.get("started"):
@@ -293,6 +317,7 @@ def _render_block_puzzle(child: dict[str, Any]) -> None:
         return
 
     _render_running_toolbar("block_puzzle", state)
+    _render_game_status(child, "block_puzzle")
 
     result = neon_block_puzzle_game(
         state,
@@ -661,15 +686,34 @@ def _events_with_modifiers(state: dict[str, Any], events: list[dict[str, Any]]) 
 
 
 def _render_running_toolbar(game_type: str, state: dict[str, Any]) -> None:
-    cols = st.columns([3, 2, 1], vertical_alignment="center")
+    if game_type == "snake":
+        cols = st.columns([6, 1.25, 1.25], vertical_alignment="center")
+    else:
+        cols = st.columns([7, 1.35], vertical_alignment="center")
+
     with cols[0]:
-        st.caption("遊戲進行中；不想繼續時可以直接退出，會回到遊戲入口。")
-    with cols[1]:
         st.markdown(
-            f'<span class="gear-buff-pill">本局助力：<strong>{escape(_modifier_status_label(state.get("active_modifiers") or state.get("active_buff")))}</strong></span>',
+            f'<div class="game-toolbar-buff">本局助力：<strong>{escape(_modifier_status_label(state.get("active_modifiers") or state.get("active_buff")))}</strong></div>',
             unsafe_allow_html=True,
         )
-    with cols[2]:
+
+    if game_type == "snake":
+        paused = bool(state.get("paused"))
+        with cols[1]:
+            if st.button(
+                "繼續遊戲" if paused else "暫停",
+                icon=":material/play_arrow:" if paused else ":material/pause:",
+                key=f"pause_running_{state.get('game_id', '')}",
+                use_container_width=True,
+            ):
+                state["paused"] = not paused
+                st.session_state["snake_game"] = state
+                st.rerun()
+        exit_col = cols[2]
+    else:
+        exit_col = cols[1]
+
+    with exit_col:
         if st.button(
             "退出遊戲",
             icon=":material/logout:",

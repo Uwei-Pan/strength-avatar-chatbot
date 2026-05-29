@@ -1,2 +1,20 @@
 [client]
 showSidebarNavigation = false
+
+[server]
+headless = true
+enableXsrfProtection = true
+enableCORS = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#0C63B8"
+backgroundColor = "#FFF7D6"
+secondaryBackgroundColor = "#E7F5FF"
+textColor = "#2F3A5F"
+font = "sans-serif"
+baseRadius = "12px"
+buttonRadius = "12px"

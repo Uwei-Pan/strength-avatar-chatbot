@@ -66,6 +66,7 @@ def _render_shop_item(child_id: str, outfit: dict) -> None:
                         <strong>{escape(str(profile["display_name"]))}</strong>
                         <p>{escape(str(profile["short_description"]))}</p>
                         <p class="gear-buff-line">{escape(str(buff.get("buff_label") or "外觀裝備"))}</p>
+                        <span class="kid-tag shop-status-available">可購買</span>
                         <span class="kid-tag {escape(str(profile["accent"]))}">優勢：{escape(str(strength))}</span>
                     </div>
                 </div>
@@ -99,6 +100,7 @@ def _render_owned_item(outfit: dict, *, equipped: bool = False) -> None:
                     <p>{escape(str(profile["short_description"]))}</p>
                     <p class="gear-buff-line">{escape(str(buff.get("buff_label") or "外觀裝備"))}</p>
                     <span class="kid-tag {escape(str(profile["accent"]))}">優勢：{escape(str(strength))}</span>
+                    <span class="kid-tag shop-status-owned">已擁有</span>
                     <span class="kid-tag chip-b">已經可以在角色頁使用</span>
                     {('<span class="kid-tag chip-a">目前裝備中</span>' if equipped else '')}
                 </div>

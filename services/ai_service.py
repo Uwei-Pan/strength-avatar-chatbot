@@ -22,8 +22,18 @@ from services.student_profile_service import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = PROJECT_ROOT / ".env"
+ENV_LOCAL_PATH = PROJECT_ROOT / ".env.local"
+ENVC_PATH = PROJECT_ROOT / ".envc"
+PLACEHOLDER_API_KEYS = {
+    "",
+    "your_gemini_api_key_here",
+    "你的_api_key",
+    "change_me",
+}
 
+load_dotenv(dotenv_path=ENVC_PATH, override=False)
 load_dotenv(dotenv_path=ENV_PATH, override=True)
+load_dotenv(dotenv_path=ENV_LOCAL_PATH, override=True)
 
 
 DEFAULT_RESULT = {
@@ -81,8 +91,67 @@ ALLOWED_EVIDENCE_SOURCES = {
 }
 
 
-def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[str, Any]:
+def _load_ai_environment() -> None:
+    load_dotenv(dotenv_path=ENVC_PATH, override=False)
     load_dotenv(dotenv_path=ENV_PATH, override=True)
+    load_dotenv(dotenv_path=ENV_LOCAL_PATH, override=True)
+
+
+def get_gemini_api_key() -> str:
+    _load_ai_environment()
+    for env_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"):
+        api_key = os.getenv(env_name, "").strip().strip('"').strip("'")
+        if api_key and api_key.lower() not in PLACEHOLDER_API_KEYS:
+            return api_key
+    return ""
+
+
+def get_gemini_model() -> str:
+    _load_ai_environment()
+    model = os.getenv("GEMINI_MODEL", "").strip().strip('"').strip("'")
+    return model or "gemini-2.5-flash"
+
+
+def get_gemini_model_candidates() -> list[str]:
+    _load_ai_environment()
+    candidates = [get_gemini_model()]
+    raw_fallbacks = os.getenv("GEMINI_FALLBACK_MODELS", "").strip()
+    if raw_fallbacks:
+        candidates.extend(
+            item.strip().strip('"').strip("'")
+            for item in raw_fallbacks.split(",")
+            if item.strip()
+        )
+    unique: list[str] = []
+    for model in candidates:
+        if model and model not in unique:
+            unique.append(model)
+    return unique
+
+
+def get_gemini_setup_status() -> dict[str, Any]:
+    _load_ai_environment()
+    api_key = get_gemini_api_key()
+    key_source = ""
+    for env_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"):
+        value = os.getenv(env_name, "").strip().strip('"').strip("'")
+        if value and value.lower() not in PLACEHOLDER_API_KEYS:
+            key_source = env_name
+            break
+    return {
+        "has_api_key": bool(api_key),
+        "key_source": key_source,
+        "model": get_gemini_model(),
+        "model_candidates": get_gemini_model_candidates(),
+        "env_path": str(ENV_PATH),
+        "env_exists": ENV_PATH.exists(),
+        "env_local_exists": ENV_LOCAL_PATH.exists(),
+        "envc_exists": ENVC_PATH.exists(),
+    }
+
+
+def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[str, Any]:
+    _load_ai_environment()
     cleaned = message.strip()
     if not cleaned:
         return {
@@ -92,9 +161,9 @@ def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[s
             "tokens_earned": 0,
         }
 
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key or api_key == "your_gemini_api_key_here":
-        return _mock_analyze(cleaned, "沒有設定 GEMINI_API_KEY，使用 mock mode。", child_profile)
+    api_key = get_gemini_api_key()
+    if not api_key:
+        return _mock_analyze(cleaned, "沒有設定有效的 GEMINI_API_KEY，使用 mock mode。", child_profile)
 
     try:
         return _analyze_with_gemini(child_profile, cleaned, api_key)
@@ -107,18 +176,18 @@ def validate_reflection_answer(
     question: str,
     answer: str,
 ) -> dict[str, Any]:
-    load_dotenv(dotenv_path=ENV_PATH, override=True)
+    _load_ai_environment()
     cleaned = answer.strip()
     local_result = _rule_validate_reflection(cleaned)
     if not local_result["is_valid"]:
         return local_result
 
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key or api_key == "your_gemini_api_key_here":
+    api_key = get_gemini_api_key()
+    if not api_key:
         return {
             **local_result,
             "mode": "mock",
-            "error": "沒有設定 GEMINI_API_KEY，使用本機規則確認。",
+            "error": "沒有設定有效的 GEMINI_API_KEY，使用本機規則確認。",
         }
 
     try:
@@ -140,11 +209,14 @@ def _validate_reflection_with_gemini(
     try:
         from google import genai
         from google.genai import types
-    except ImportError:
-        return _rule_validate_reflection(answer)
+    except ImportError as exc:
+        return {
+            **_rule_validate_reflection(answer),
+            "mode": "mock",
+            "error": f"缺少 google-genai 套件：{exc}",
+        }
 
     client = genai.Client(api_key=api_key)
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     prompt = f"""
 你正在協助兒童遊戲中的反思復活機制。請判斷孩子的回答是否「足夠具體且真誠」，可以讓他復活一次。
 
@@ -165,8 +237,8 @@ def _validate_reflection_with_gemini(
 - 如果只是重複字、亂打、只有「不知道」「還好」「可以」「我要復活」、無意義符號、或明顯敷衍，請判斷不合格。
 - 不要責備孩子；提醒要短、溫柔、明確。
 """
-    response = client.models.generate_content(
-        model=model,
+    response, _model = _generate_gemini_content(
+        client,
         contents=prompt,
         config=types.GenerateContentConfig(
             responseMimeType="application/json",
@@ -241,11 +313,10 @@ def _analyze_with_gemini(
     try:
         from google import genai
         from google.genai import types
-    except ImportError:
-        return _mock_analyze(message)
+    except ImportError as exc:
+        return _mock_analyze(message, f"缺少 google-genai 套件：{exc}", child_profile)
 
     client = genai.Client(api_key=api_key)
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     strengths = [
         item.get("name_zh")
         for item in child_profile.get("owned_strengths", [])
@@ -329,8 +400,8 @@ def _analyze_with_gemini(
 - 如果案例清單沒有相關內容，不可以編造過去事件，只能用一般鼓勵語氣。
 - 如果孩子提到危險、自傷、想傷害自己、被傷害、被威脅或嚴重情緒困擾，要先溫柔接住，並明確建議孩子立刻找可信任的大人、老師、輔導老師或家人協助；不要只用一般鼓勵帶過。
 """
-    response = client.models.generate_content(
-        model=model,
+    response, used_model = _generate_gemini_content(
+        client,
         contents=prompt,
         config=types.GenerateContentConfig(
             responseMimeType="application/json",
@@ -341,7 +412,45 @@ def _analyze_with_gemini(
     result = _normalize_result(_parse_json(raw_text), message)
     result["mode"] = "gemini"
     result["error"] = ""
+    result["model"] = used_model
     return result
+
+
+def _generate_gemini_content(client: Any, *, contents: str, config: Any):
+    errors = []
+    for model in get_gemini_model_candidates():
+        try:
+            return client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=config,
+            ), model
+        except Exception as exc:
+            errors.append((model, exc))
+            if not _is_retryable_gemini_error(exc):
+                break
+    if len(errors) == 1:
+        raise errors[0][1]
+    summary = "；".join(
+        f"{model}: {type(exc).__name__}: {str(exc)[:180]}"
+        for model, exc in errors
+    )
+    raise RuntimeError(f"Gemini 模型都暫時無法使用：{summary}")
+
+
+def _is_retryable_gemini_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    retryable_markers = [
+        "503",
+        "unavailable",
+        "high demand",
+        "429",
+        "resource_exhausted",
+        "quota",
+        "not_found",
+        "404",
+    ]
+    return any(marker in message for marker in retryable_markers)
 
 
 def _parse_json(raw_text: str) -> dict[str, Any]:
@@ -424,6 +533,22 @@ def _mock_analyze(
 
 def _format_gemini_error(exc: Exception) -> str:
     message = str(exc)
+    lowered = message.lower()
+    if "503" in lowered or "unavailable" in lowered or "high demand" in lowered:
+        return (
+            "Gemini API 目前回覆忙碌或暫時不可用，已先使用 mock mode："
+            f"{type(exc).__name__}: {message[:260]}"
+        )
+    if "429" in lowered or "resource_exhausted" in lowered or "quota" in lowered:
+        return (
+            "Gemini API 配額暫時用完或被限流，已先使用 mock mode："
+            f"{type(exc).__name__}: {message[:260]}"
+        )
+    if "api key" in lowered or "permission" in lowered or "403" in lowered or "401" in lowered:
+        return (
+            "Gemini API key 或權限可能需要確認，已先使用 mock mode："
+            f"{type(exc).__name__}: {message[:260]}"
+        )
     if len(message) > 700:
         message = message[:700] + "..."
     return f"Gemini API 呼叫失敗，使用 mock mode：{type(exc).__name__}: {message}"

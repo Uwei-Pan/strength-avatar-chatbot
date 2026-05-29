@@ -1,17 +1,20 @@
+import os
 from datetime import date
 
 import streamlit as st
+from dotenv import load_dotenv
 
 from database.db_connection import DatabaseConnectionError
 from services.child_service import get_child
 from services.todo_service import complete_todo, create_todo, delete_todo, list_todos
 
 
-COUNSELOR_TASK_REVIEW_PASSWORD = "1234"  # TODO: move this to environment config or counselor account permissions.
-
-
-def _get_counselor_task_review_password() -> str:
-    return COUNSELOR_TASK_REVIEW_PASSWORD
+def _get_counselor_task_review_password() -> str | None:
+    load_dotenv(override=False)
+    configured = os.getenv("COUNSELOR_TASK_REVIEW_PASSWORD", "").strip()
+    if configured and configured.lower() not in {"change_me", "your_password_here"}:
+        return configured
+    return None
 
 
 def render() -> None:
@@ -27,6 +30,7 @@ def render() -> None:
         st.error("請先登入。")
         return
 
+    st.markdown('<div class="todo-page-scope"></div>', unsafe_allow_html=True)
     st.markdown(
         """
         <div class="kid-hero">
@@ -144,6 +148,9 @@ def _render_pending_task_review() -> None:
         with col_confirm:
             if st.button("確認新增", key="confirm_pending_task", use_container_width=True):
                 review_password = _get_counselor_task_review_password()
+                if not review_password:
+                    st.error("尚未設定輔導員審核密碼，請在環境變數設定 COUNSELOR_TASK_REVIEW_PASSWORD。")
+                    return
                 if password != review_password:
                     st.warning("密碼不正確，請再請輔導員確認一次。")
                     return
@@ -189,6 +196,9 @@ def _render_pending_task_completion_review() -> None:
         with col_confirm:
             if st.button("確認完成", key="confirm_pending_task_completion", use_container_width=True):
                 review_password = _get_counselor_task_review_password()
+                if not review_password:
+                    st.error("尚未設定輔導員審核密碼，請在環境變數設定 COUNSELOR_TASK_REVIEW_PASSWORD。")
+                    return
                 if password != review_password:
                     st.warning("密碼不正確，請再請輔導員確認一次。")
                     return
