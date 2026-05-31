@@ -25,7 +25,7 @@ HTML = """
     </div>
   </div>
   <div id="buff" class="slither-buff"></div>
-  <div class="slither-help">手機可用手指點按或拖曳操控；電腦可用方向鍵、WASD 或滑鼠轉向。小光點基礎 +10，大顆優勢果實基礎 +40。</div>
+  <div class="slither-help">手機可用手指點按或拖曳操控；電腦可用方向鍵或滑鼠轉向。小光點基礎 +10，大顆優勢果實基礎 +40。</div>
 </div>
 """
 
@@ -34,8 +34,8 @@ CSS = """
   position: relative;
   width: min(100%, 720px);
   margin: 0 auto;
-  padding: 10px;
-  border-radius: 20px;
+  padding: 9px;
+  border-radius: 16px;
   background:
     radial-gradient(circle at 18% 18%, rgba(255, 209, 102, 0.22), transparent 28%),
     radial-gradient(circle at 84% 20%, rgba(126, 240, 161, 0.16), transparent 30%),
@@ -49,14 +49,14 @@ CSS = """
 .slither-topbar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 8px;
+  gap: 7px;
+  margin-top: 7px;
 }
 
 .slither-topbar > div {
   min-width: 0;
-  padding: 7px 10px;
-  border-radius: 14px;
+  padding: 6px 8px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(8px);
@@ -66,12 +66,12 @@ CSS = """
   display: block;
   margin-bottom: 2px;
   color: rgba(247, 251, 255, 0.72);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
 }
 
 .slither-topbar strong {
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.1;
 }
 
@@ -79,9 +79,9 @@ CSS = """
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: 18px;
+  border-radius: 14px;
   background: #090e27;
-  outline: 4px solid rgba(255, 255, 255, 0.16);
+  outline: 3px solid rgba(255, 255, 255, 0.16);
   touch-action: none;
   user-select: none;
 }
@@ -91,7 +91,8 @@ CSS = """
 }
 
 .slither-help {
-  margin-top: 6px;
+  display: none;
+  margin-top: 4px;
   color: rgba(247, 251, 255, 0.78);
   font-size: 12px;
   font-weight: 700;
@@ -104,12 +105,12 @@ CSS = """
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 8px;
+  padding: 3px 7px;
   border-radius: 999px;
   color: #fff7a8;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
   white-space: nowrap;
   overflow-x: auto;
@@ -134,32 +135,32 @@ CSS = """
 }
 
 @media (max-width: 560px) {
-  .slither-shell { padding: 10px; border-radius: 18px; }
-  .slither-topbar { gap: 6px; }
-  .slither-topbar > div { padding: 8px; border-radius: 12px; }
-  .slither-topbar strong { font-size: 18px; }
+  .slither-shell { padding: 6px; border-radius: 14px; }
+  .slither-topbar { gap: 4px; }
+  .slither-topbar > div { padding: 4px 5px; border-radius: 10px; }
+  .slither-topbar strong { font-size: 15px; }
   .slither-overlay { inset: 0; }
 }
 
 @media (max-width: 430px) {
   .slither-shell {
     width: 100%;
-    padding: 8px;
+    padding: 5px;
   }
   #slither-canvas {
-    aspect-ratio: 1 / 1;
-    border-radius: 16px;
-    outline-width: 3px;
+    aspect-ratio: 5 / 4;
+    border-radius: 12px;
+    outline-width: 2px;
   }
   .slither-label {
-    font-size: 11px;
+    font-size: 9px;
   }
   .slither-help {
-    font-size: 12px;
+    font-size: 10px;
     line-height: 1.45;
   }
   .slither-buff {
-    border-radius: 14px;
+    border-radius: 12px;
     text-align: center;
   }
 }
@@ -167,6 +168,8 @@ CSS = """
 
 JS = """
 const instances = new WeakMap()
+const BASE_SNAKE_SPEED = 1.35
+const SNAKE_COUNTDOWN_MS = 5000
 
 export default function (component) {
   const { data, parentElement, setTriggerValue } = component
@@ -206,7 +209,7 @@ export default function (component) {
     instance.height = displayHeight
     if (instance.needsResizeReset) {
       resetPlayfield(instance)
-      instance.waitingForTouch = shouldWaitForTouch
+      instance.waitingForTouch = false
       instance.needsResizeReset = false
     } else {
       keepInsidePlayfield(instance)
@@ -281,7 +284,7 @@ export default function (component) {
 
   const tick = () => {
     if (!instances.has(parentElement)) return
-    if (!instance.gameOver && !instance.waitingForTouch && !instance.paused) {
+    if (!instance.gameOver && !instance.waitingForTouch && !instance.paused && countdownRemainingMs(instance) <= 0) {
       update(instance, setTriggerValue)
     }
     draw(ctx, instance, scoreNode, lengthNode, tokenNode, buffNode, overlay)
@@ -313,7 +316,7 @@ function createGame(gameId, data) {
     head,
     angle: 0,
     targetAngle: 0,
-    speed: 2.25 * speedMultiplier,
+    speed: BASE_SNAKE_SPEED * speedMultiplier,
     scoreMultiplier,
     speedMultiplier,
     turnRate: clamp(Number(data?.turn_rate ?? 0.09), 0.065, 0.09),
@@ -325,6 +328,8 @@ function createGame(gameId, data) {
     maxPoints: 58,
     points: [],
     foods: [],
+    obstacles: [],
+    difficultyLevel: 0,
     score: Math.max(0, Math.round(Number(data?.bonus_start_score ?? 0))),
     serverTokens: Number(data?.tokens_earned ?? 0),
     localTokens: 0,
@@ -337,6 +342,8 @@ function createGame(gameId, data) {
     needsResizeReset: true,
     waitingForTouch: false,
     paused: Boolean(data?.paused),
+    countdownStartedAtMs: Number(data?.countdown_started_at_ms ?? Date.now()),
+    countdownMs: SNAKE_COUNTDOWN_MS,
     cleanup: null,
   }
   for (let index = 0; index < 46; index += 1) {
@@ -357,6 +364,8 @@ function resetPlayfield(state) {
   }
   state.foods = []
   for (let index = 0; index < 28; index += 1) spawnFood(state)
+  state.obstacles = []
+  updateObstaclesByLength(state)
   state.strengthFruit = spawnStrengthFruit(state)
 }
 
@@ -377,9 +386,15 @@ function keepInsidePlayfield(state) {
     state.strengthFruit.x = Math.max(fruitMargin, Math.min(state.width - fruitMargin, state.strengthFruit.x))
     state.strengthFruit.y = Math.max(fruitMargin, Math.min(state.height - fruitMargin, state.strengthFruit.y))
   }
+  for (const obstacle of state.obstacles ?? []) {
+    const obstacleMargin = obstacle.radius + 8
+    obstacle.x = Math.max(obstacleMargin, Math.min(state.width - obstacleMargin, obstacle.x))
+    obstacle.y = Math.max(obstacleMargin, Math.min(state.height - obstacleMargin, obstacle.y))
+  }
 }
 
 function update(state, setTriggerValue) {
+  updateObstaclesByLength(state)
   state.angle = turnToward(state.angle, state.targetAngle, state.turnRate)
   state.head.x += Math.cos(state.angle) * state.speed
   state.head.y += Math.sin(state.angle) * state.speed
@@ -402,6 +417,14 @@ function update(state, setTriggerValue) {
     if (distance(state.head, state.points[index]) < state.radius * 1.45) {
       if (useShield(state, "hit_self")) return
       finish(state, "hit_self", setTriggerValue)
+      return
+    }
+  }
+
+  for (const obstacle of state.obstacles ?? []) {
+    if (distance(state.head, obstacle) < state.radius + obstacle.radius * 0.82) {
+      if (useShield(state, "hit_obstacle")) return
+      finish(state, "hit_obstacle", setTriggerValue)
       return
     }
   }
@@ -463,6 +486,8 @@ function draw(ctx, state, scoreNode, lengthNode, tokenNode, buffNode, overlay) {
   }
   ctx.restore()
 
+  drawObstacles(ctx, state)
+
   for (const food of state.foods) {
     const glow = ctx.createRadialGradient(food.x, food.y, 1, food.x, food.y, food.radius * 3.2)
     glow.addColorStop(0, food.color)
@@ -501,11 +526,20 @@ function draw(ctx, state, scoreNode, lengthNode, tokenNode, buffNode, overlay) {
   buffNode.textContent = state.buffLabel ? `本局助力：${state.buffLabel}${shieldText}` : "本局沒有額外助力"
 
   if (state.gameOver) {
-    const label = state.reason === "hit_self" ? "你撞到自己了！" : "你撞到牆壁了！"
+    const reasonLabels = {
+      hit_self: "你撞到自己了！",
+      hit_obstacle: "你碰到星岩障礙了！",
+      hit_wall: "你撞到牆壁了！",
+    }
+    const label = reasonLabels[state.reason] ?? "這一局結束了！"
     overlay.innerHTML = `<div><div style="font-size:30px;margin-bottom:8px;">Game Over</div><div>${label}</div></div>`
     overlay.classList.remove("hidden")
   } else if (state.paused) {
     overlay.innerHTML = `<div><div style="font-size:24px;margin-bottom:8px;">遊戲已暫停</div><div>按「繼續遊戲」或空白鍵回到這一局。</div></div>`
+    overlay.classList.remove("hidden")
+  } else if (countdownRemainingMs(state) > 0) {
+    const seconds = countdownRemainingSeconds(state)
+    overlay.innerHTML = `<div><div style="font-size:26px;margin-bottom:8px;">準備開始</div><div style="font-size:56px;line-height:1;margin-bottom:10px;">${seconds}</div><div>準備好方向鍵 / 滑鼠或手指操作</div></div>`
     overlay.classList.remove("hidden")
   } else if (state.waitingForTouch) {
     overlay.innerHTML = `<div><div style="font-size:24px;margin-bottom:8px;">點一下畫面開始</div><div>用手指拖曳方向，蛇會朝手指移動。</div></div>`
@@ -553,9 +587,10 @@ function finish(state, reason, setTriggerValue) {
 
 function spawnFood(state) {
   const palette = ["#64d2ff", "#4ecdc4", "#fff07a", "#a5ffd6"]
+  const point = findSafePoint(state, 8)
   state.foods.push({
-    x: 30 + Math.random() * Math.max(1, state.width - 60),
-    y: 30 + Math.random() * Math.max(1, state.height - 60),
+    x: point.x,
+    y: point.y,
     radius: 5,
     type: "normal",
     color: palette[Math.floor(Math.random() * palette.length)],
@@ -566,9 +601,10 @@ function spawnStrengthFruit(state) {
   const strengths = ["仁慈", "勤奮", "好奇心", "勇敢", "感激", "團體合作", "自我規範"]
   const palette = ["#ffcf4a", "#ff7ab8", "#a98bff", "#7ef0a1"]
   const angle = Math.random() * Math.PI * 2
+  const point = findSafePoint(state, 22)
   return {
-    x: 80 + Math.random() * Math.max(1, state.width - 160),
-    y: 80 + Math.random() * Math.max(1, state.height - 160),
+    x: point.x,
+    y: point.y,
     vx: Math.cos(angle) * 1.35,
     vy: Math.sin(angle) * 1.35,
     radius: 16,
@@ -595,6 +631,99 @@ function useShield(state, reason) {
     state.points.push({ x: state.head.x - index * 4, y: state.head.y })
   }
   return true
+}
+
+function snakeLength(state) {
+  return Math.max(3, Math.round(state.maxPoints / 18))
+}
+
+function getSnakeDifficulty(length) {
+  const level = Math.max(0, Math.min(5, Math.floor((Number(length) - 5) / 4)))
+  return {
+    level,
+    obstacleCount: Math.max(0, Math.min(5, level)),
+    obstacleRadius: 13 + Math.min(4, level),
+  }
+}
+
+function updateObstaclesByLength(state) {
+  const difficulty = getSnakeDifficulty(snakeLength(state))
+  state.difficultyLevel = difficulty.level
+  if (!Array.isArray(state.obstacles)) state.obstacles = []
+  while (state.obstacles.length < difficulty.obstacleCount) {
+    const point = findSafePoint(state, difficulty.obstacleRadius + 4)
+    state.obstacles.push({
+      x: point.x,
+      y: point.y,
+      radius: difficulty.obstacleRadius,
+      pulse: Math.random() * Math.PI * 2,
+    })
+  }
+  if (state.obstacles.length > difficulty.obstacleCount) {
+    state.obstacles = state.obstacles.slice(0, difficulty.obstacleCount)
+  }
+}
+
+function drawObstacles(ctx, state) {
+  for (const obstacle of state.obstacles ?? []) {
+    obstacle.pulse = (obstacle.pulse ?? 0) + 0.025
+    const glowRadius = obstacle.radius * (2.4 + Math.sin(obstacle.pulse) * 0.18)
+    const glow = ctx.createRadialGradient(obstacle.x, obstacle.y, 1, obstacle.x, obstacle.y, glowRadius)
+    glow.addColorStop(0, "rgba(255, 95, 109, 0.56)")
+    glow.addColorStop(1, "rgba(255, 95, 109, 0)")
+    ctx.fillStyle = glow
+    ctx.beginPath()
+    ctx.arc(obstacle.x, obstacle.y, glowRadius, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = "#ff5f6d"
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.55)"
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(obstacle.x, obstacle.y, obstacle.radius, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+  }
+}
+
+function findSafePoint(state, radius) {
+  const margin = Math.max(28, radius + state.radius + 8)
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const point = {
+      x: margin + Math.random() * Math.max(1, state.width - margin * 2),
+      y: margin + Math.random() * Math.max(1, state.height - margin * 2),
+    }
+    if (isPointSafe(state, point, radius)) return point
+  }
+  return {
+    x: Math.max(margin, Math.min(state.width - margin, state.width * 0.72)),
+    y: Math.max(margin, Math.min(state.height - margin, state.height * 0.32)),
+  }
+}
+
+function isPointSafe(state, point, radius) {
+  if (distance(point, state.head) < radius + state.radius + 80) return false
+  for (const bodyPoint of state.points ?? []) {
+    if (distance(point, bodyPoint) < radius + state.radius + 16) return false
+  }
+  for (const obstacle of state.obstacles ?? []) {
+    if (distance(point, obstacle) < radius + obstacle.radius + 24) return false
+  }
+  for (const food of state.foods ?? []) {
+    if (distance(point, food) < radius + food.radius + 18) return false
+  }
+  if (state.strengthFruit && distance(point, state.strengthFruit) < radius + state.strengthFruit.radius + 24) {
+    return false
+  }
+  return true
+}
+
+function countdownRemainingMs(state) {
+  const elapsed = Date.now() - Number(state.countdownStartedAtMs ?? Date.now())
+  return Math.max(0, Number(state.countdownMs ?? 0) - elapsed)
+}
+
+function countdownRemainingSeconds(state) {
+  return Math.max(1, Math.ceil(countdownRemainingMs(state) / 1000))
 }
 
 function moveStrengthFruit(state) {
@@ -706,6 +835,7 @@ def slither_snake_game(
             "modifier_label": modifiers.get("summary_label") if modifiers.get("applies") else "",
             "buff_label": modifiers.get("buff_label") if modifiers.get("applies") else "",
             "paused": bool(state.get("paused")),
+            "countdown_started_at_ms": int(state.get("countdown_started_at_ms") or 0),
         },
         on_game_over_change=on_game_over_change,
         on_token_award_change=on_token_award_change,

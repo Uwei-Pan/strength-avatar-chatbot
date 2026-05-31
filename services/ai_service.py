@@ -30,6 +30,7 @@ PLACEHOLDER_API_KEYS = {
     "你的_api_key",
     "change_me",
 }
+DIARY_STRENGTH_CONFIDENCE_THRESHOLD = 0.65
 
 load_dotenv(dotenv_path=ENVC_PATH, override=False)
 load_dotenv(dotenv_path=ENV_PATH, override=True)
@@ -103,19 +104,24 @@ def get_gemini_api_key() -> str:
         api_key = os.getenv(env_name, "").strip().strip('"').strip("'")
         if api_key and api_key.lower() not in PLACEHOLDER_API_KEYS:
             return api_key
+        secret_key = _get_streamlit_secret(env_name)
+        if secret_key and secret_key.lower() not in PLACEHOLDER_API_KEYS:
+            return secret_key
     return ""
 
 
 def get_gemini_model() -> str:
     _load_ai_environment()
     model = os.getenv("GEMINI_MODEL", "").strip().strip('"').strip("'")
-    return model or "gemini-2.5-flash"
+    return model or _get_streamlit_secret("GEMINI_MODEL") or "gemini-2.5-flash"
 
 
 def get_gemini_model_candidates() -> list[str]:
     _load_ai_environment()
     candidates = [get_gemini_model()]
     raw_fallbacks = os.getenv("GEMINI_FALLBACK_MODELS", "").strip()
+    if not raw_fallbacks:
+        raw_fallbacks = _get_streamlit_secret("GEMINI_FALLBACK_MODELS")
     if raw_fallbacks:
         candidates.extend(
             item.strip().strip('"').strip("'")
@@ -129,6 +135,15 @@ def get_gemini_model_candidates() -> list[str]:
     return unique
 
 
+def _get_streamlit_secret(name: str) -> str:
+    try:
+        import streamlit as st
+
+        return str(st.secrets.get(name, "")).strip().strip('"').strip("'")
+    except Exception:
+        return ""
+
+
 def get_gemini_setup_status() -> dict[str, Any]:
     _load_ai_environment()
     api_key = get_gemini_api_key()
@@ -137,6 +152,10 @@ def get_gemini_setup_status() -> dict[str, Any]:
         value = os.getenv(env_name, "").strip().strip('"').strip("'")
         if value and value.lower() not in PLACEHOLDER_API_KEYS:
             key_source = env_name
+            break
+        secret_value = _get_streamlit_secret(env_name)
+        if secret_value and secret_value.lower() not in PLACEHOLDER_API_KEYS:
+            key_source = f"st.secrets.{env_name}"
             break
     return {
         "has_api_key": bool(api_key),
@@ -171,6 +190,28 @@ def analyze_child_message(child_profile: dict[str, Any], message: str) -> dict[s
         return _mock_analyze(cleaned, _format_gemini_error(exc), child_profile)
 
 
+def analyze_diary_entry(child_profile: dict[str, Any], content: str) -> dict[str, Any]:
+    _load_ai_environment()
+    cleaned = content.strip()
+    if not cleaned:
+        return _diary_fallback_result("謝謝你願意記錄今天。")
+
+    api_key = get_gemini_api_key()
+    if not api_key:
+        return _diary_fallback_result(
+            "日記已儲存，謝謝你分享。",
+            error="沒有設定有效的 GEMINI_API_KEY，已先儲存日記。",
+        )
+
+    try:
+        return _analyze_diary_with_gemini(child_profile, cleaned, api_key)
+    except Exception as exc:
+        return _diary_fallback_result(
+            "日記已儲存，AI 小幫手晚點再來幫你整理。",
+            error=_format_gemini_error(exc),
+        )
+
+
 def validate_reflection_answer(
     child_profile: dict[str, Any],
     question: str,
@@ -198,6 +239,146 @@ def validate_reflection_answer(
             "mode": "mock",
             "error": _format_gemini_error(exc),
         }
+
+
+def _analyze_diary_with_gemini(
+    child_profile: dict[str, Any],
+    content: str,
+    api_key: str,
+) -> dict[str, Any]:
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as exc:
+        return _diary_fallback_result(
+            "日記已儲存，AI 小幫手晚點再來幫你整理。",
+            error=f"缺少 google-genai 套件：{exc}",
+        )
+
+    client = genai.Client(api_key=api_key)
+    strength_context = build_strength_prompt_context()
+    prompt = f"""
+你正在協助孩子整理一篇心情日記。請用溫柔、鼓勵、適合兒童的繁體中文判斷日記中是否有「明確可由文字支持」的優勢。
+
+孩子名字：{child_profile.get("name", "孩子")}
+日記內容：
+{content}
+
+只能使用以下 24 種優勢名稱，不可以創造其他名稱：
+{", ".join(sorted(ALLOWED_STRENGTH_NAMES))}
+
+{strength_context}
+
+請只回傳 JSON，不要加 Markdown：
+{{
+  "has_strength": true,
+  "strength_name": "勇敢",
+  "confidence": 0.82,
+  "reason": "孩子描述了面對困難仍願意說出感受。",
+  "encouragement": "你願意把不舒服說出來，這是很勇敢的一步。"
+}}
+
+如果沒有明確優勢，請回傳：
+{{
+  "has_strength": false,
+  "strength_name": null,
+  "confidence": 0,
+  "reason": "",
+  "encouragement": "謝謝你願意記錄今天。"
+}}
+
+判斷規則：
+- 只有日記有具體事件、感受、行動或選擇時，才可以判斷優勢。
+- 不要過度貼標籤，不要每篇都硬判斷出優勢。
+- 如果只是短句、心情詞、問候、重複字、亂碼、或證據不清楚，has_strength 必須是 false。
+- confidence 需要反映證據強度；不確定時請低於 0.65。
+- encouragement 不要說「未看見優勢」「沒有優勢」「判斷不出」等讓孩子受挫的話。
+- encouragement 最多 2 句，保持溫柔自然，不要像分析報告。
+"""
+    response, used_model = _generate_gemini_content(
+        client,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            responseMimeType="application/json",
+            temperature=0.15,
+        ),
+    )
+    parsed = _parse_json(getattr(response, "text", "") or "")
+    strength = _diary_strength_from_json(parsed, content)
+    encouragement = str(parsed.get("encouragement") or "").strip() or "日記已儲存，謝謝你分享。"
+    return {
+        "reply_to_child": encouragement,
+        "emotion": _guess_emotion(content),
+        "detected_strengths": [strength] if strength else [],
+        "should_award_tokens": True,
+        "tokens_earned": 0,
+        "follow_up_question": "",
+        "mode": "gemini",
+        "error": "",
+        "model": used_model,
+        "diary_analysis": {
+            "has_strength": bool(strength),
+            "strength_name": strength["strength_name"] if strength else None,
+            "confidence": strength["confidence"] if strength else 0,
+            "reason": str(parsed.get("reason") or ""),
+        },
+    }
+
+
+def _diary_strength_from_json(parsed: dict[str, Any], content: str) -> dict[str, Any] | None:
+    if not bool(parsed.get("has_strength")):
+        return None
+    strength_name = normalize_strength_name(str(parsed.get("strength_name") or ""))
+    if strength_name not in ALLOWED_STRENGTH_NAMES:
+        return None
+    try:
+        confidence = float(parsed.get("confidence") or 0)
+    except (TypeError, ValueError):
+        confidence = 0
+    confidence = max(0.0, min(1.0, confidence))
+    if confidence < DIARY_STRENGTH_CONFIDENCE_THRESHOLD:
+        return None
+    reason = str(parsed.get("reason") or "")
+    definition = get_strength_definition_by_name(strength_name) or {}
+    return {
+        "strength_name": strength_name,
+        "confidence_level": _clean_confidence_level("", confidence),
+        "confidence": confidence,
+        "evidence_count": 1,
+        "evidence_sources": ["journal"],
+        "evidence_quotes": [content[:220]],
+        "evidence_text": content,
+        "reason": reason,
+        "reasoning_summary": reason or f"日記中呈現了「{strength_name}」的具體線索。",
+        "child_friendly_feedback": str(
+            parsed.get("encouragement")
+            or definition.get("child_friendly_description")
+            or "謝謝你願意分享今天。"
+        ),
+        "teacher_facing_explanation": (
+            f"Gemini 依日記文字判斷可能呈現「{strength_name}」，"
+            f"confidence={confidence:.2f}；此紀錄不是正式心理測驗，仍需持續觀察。"
+        ),
+    }
+
+
+def _diary_fallback_result(reply: str, *, error: str = "") -> dict[str, Any]:
+    return {
+        "reply_to_child": reply,
+        "emotion": "平穩",
+        "detected_strengths": [],
+        "should_award_tokens": True,
+        "tokens_earned": 0,
+        "follow_up_question": "",
+        "mode": "fallback",
+        "error": error,
+        "diary_analysis": {
+            "has_strength": False,
+            "strength_name": None,
+            "confidence": 0,
+            "reason": "",
+        },
+    }
 
 
 def _validate_reflection_with_gemini(
@@ -326,6 +507,7 @@ def _analyze_with_gemini(
     observation_context = get_ai_observation_context(child_profile.get("child_id", ""))
     strength_context = build_strength_prompt_context()
     strength_principles = "\n".join(f"- {item}" for item in get_strength_interpretation_principles())
+    # 調整聊天回覆長度與語氣時，優先修改下方「規則」段落。
     prompt = f"""
 你是一位溫暖、支持、鼓勵孩子的兒少優勢探索 AI 夥伴。請用繁體中文回覆。
 你的任務不是批評、命令或診斷孩子，而是陪孩子一起理解感受、看見自己的優勢，並給出簡單可行的小建議。
@@ -378,9 +560,11 @@ def _analyze_with_gemini(
 
 規則：
 - reply_to_child 要像可靠的大哥哥大姐姐，溫暖、鼓勵、有陪伴感，不要像老師訓話。
-- 回覆結構建議：先接住孩子的情緒；再肯定孩子願意說出來或已經做到的努力；若有明確根據，再自然提到優勢；最後給一個小小可行的下一步。
-- reply_to_child 控制在 3 到 6 句，句子短一點，適合兒童閱讀。
+- reply_to_child 請短而溫柔：以 2 到 3 句為主，最多 4 句，總長約 90 個中文字以內。
+- 回覆結構建議：一句接住孩子的情緒；一句肯定具體努力或亮點；一句給小小下一步或追問。不要每次都完整長篇整理。
+- 如果要提到優勢，只提 1 個最明確的優勢，並用一句話說完，不要長篇解釋。
 - 一次只問 1 個主要問題，不要一次丟很多問題給孩子。
+- follow_up_question 也要短，只留 1 個清楚問題，約 20 個中文字以內。
 - 可以自然引導孩子多說「發生了什麼、當時感覺、做了什麼選擇、哪裡做得不錯、要不要試一個小任務」。
 - 如果孩子分享太短，例如「嗨」「不知道」「還好」，請溫柔說明還需要多一點故事才能看見亮點，並只追問一個具體問題。
 - 不要在 reply_to_child 裡自行宣告精確代幣數；後端會依照孩子分享的具體度附加實際代幣提示。
@@ -405,7 +589,7 @@ def _analyze_with_gemini(
         contents=prompt,
         config=types.GenerateContentConfig(
             responseMimeType="application/json",
-            temperature=0.4,
+            temperature=0.35,
         ),
     )
     raw_text = getattr(response, "text", "") or ""

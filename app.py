@@ -278,8 +278,19 @@ def _inject_style() -> None:
         }
 
         [data-testid="stTextArea"] textarea::placeholder {
-            color: #cbd5e1 !important;
+            color: rgba(203, 213, 225, 0.58) !important;
             opacity: 1 !important;
+        }
+
+        [data-testid="stTextInput"] input::placeholder,
+        [data-testid="stNumberInput"] input::placeholder,
+        [data-baseweb="input"] input::placeholder {
+            color: rgba(107, 127, 167, 0.58) !important;
+            opacity: 1 !important;
+        }
+
+        [data-testid="stCaptionContainer"] {
+            color: rgba(111, 124, 154, 0.72) !important;
         }
 
         .stApp:has(.todo-page-scope) [data-testid="stTextInput"] input,
@@ -305,7 +316,7 @@ def _inject_style() -> None:
 
         .stApp:has(.todo-page-scope) [data-testid="stTextInput"] input::placeholder,
         .stApp:has(.todo-page-scope) [data-testid="stTextArea"] textarea::placeholder {
-            color: #6b7fa7 !important;
+            color: rgba(107, 127, 167, 0.56) !important;
             opacity: 1 !important;
         }
 
@@ -488,35 +499,40 @@ def _inject_style() -> None:
         }
 
         .stApp:has(.game-page-scope) [data-testid="stAppViewContainer"] .main .block-container {
-            padding-top: 0.7rem;
-            padding-bottom: 1.5rem;
-            max-width: min(980px, calc(100vw - 1.2rem));
+            padding-top: 0.55rem;
+            padding-bottom: 1rem;
+            max-width: min(1120px, calc(100vw - 1rem));
+        }
+
+        .stApp:has(.game-page-scope) [data-testid="stVerticalBlock"] {
+            gap: 0.72rem;
         }
 
         .stApp:has(.game-page-scope) .game-compact-hero {
-            padding: 0.5rem 0.75rem;
-            margin-bottom: 0.35rem;
+            padding: 0.55rem 0.75rem;
+            margin-bottom: 0.62rem;
             border-radius: 16px;
+            min-height: 0;
         }
 
         .stApp:has(.game-page-scope) .game-compact-title {
-            font-size: 1.22rem;
+            font-size: 1.2rem;
         }
 
         .stApp:has(.game-page-scope) .game-compact-copy {
-            margin-top: 0.05rem;
-            font-size: 0.84rem;
+            margin-top: 0.1rem;
+            font-size: 0.78rem;
             line-height: 1.35;
         }
 
         .stApp:has(.game-page-scope) .game-token-pill {
-            padding: 0.3rem 0.58rem;
-            font-size: 0.9rem;
+            padding: 0.28rem 0.58rem;
+            font-size: 0.84rem;
         }
 
         .stApp:has(.game-page-scope) .kid-section-title {
-            margin: 0.35rem 0 0.2rem;
-            font-size: 1.05rem;
+            margin: 0.58rem 0 0.46rem;
+            font-size: 1.02rem;
             line-height: 1.25;
         }
 
@@ -527,17 +543,80 @@ def _inject_style() -> None:
             line-height: 1.5;
         }
 
+        .game-prep-card,
+        .game-loadout-card {
+            min-height: 188px;
+            padding: 1rem 1.1rem;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(72, 168, 245, 0.18);
+            box-shadow: var(--kid-soft-shadow);
+            margin-top: 0.16rem;
+        }
+
+        .game-prep-card {
+            display: grid;
+            align-content: start;
+            gap: 0.62rem;
+            margin-bottom: 0.9rem;
+            background:
+                radial-gradient(circle at 12% 20%, rgba(255, 225, 106, 0.26), transparent 32%),
+                rgba(255, 255, 255, 0.88);
+        }
+
+        .game-prep-card strong {
+            display: block;
+            color: var(--kid-ink);
+            font-size: 1.02rem;
+            line-height: 1.35;
+        }
+
+        .game-prep-card p,
+        .game-loadout-row p {
+            margin: 0.18rem 0 0;
+            color: var(--kid-muted);
+            opacity: 0.78;
+            font-size: 0.9rem;
+            font-weight: 800;
+            line-height: 1.48;
+        }
+
+        .game-entry-kicker {
+            color: #0c63b8;
+            font-weight: 900;
+        }
+
+        .game-loadout-card {
+            display: grid;
+            gap: 0.72rem;
+            align-content: start;
+        }
+
+        .game-loadout-row {
+            display: grid;
+            grid-template-columns: 62px minmax(0, 1fr);
+            gap: 0.62rem;
+            align-items: center;
+        }
+
+        .game-loadout-row strong {
+            display: block;
+            color: var(--kid-ink);
+            line-height: 1.25;
+        }
+
         .game-toolbar-buff {
             display: flex;
             align-items: center;
             min-height: 34px;
-            padding: 0.3rem 0.7rem;
+            padding: 0.26rem 0.62rem;
+            margin: 0.1rem 0 0.24rem;
             border-radius: 999px;
             background: rgba(255, 255, 255, 0.84);
             border: 1px solid rgba(72, 168, 245, 0.18);
             box-shadow: 0 6px 16px rgba(95, 111, 143, 0.1);
             color: var(--kid-muted);
-            font-size: 0.9rem;
+            font-size: 0.84rem;
             font-weight: 800;
             line-height: 1.2;
             white-space: nowrap;
@@ -555,31 +634,57 @@ def _inject_style() -> None:
         .stApp:has(.game-page-scope) .game-status-strip {
             flex-wrap: nowrap;
             gap: 0.35rem;
-            margin: 0.28rem 0 0.45rem;
-            padding: 0.4rem 0.5rem;
-            border-radius: 16px;
+            margin: 0.52rem 0 0.72rem;
+            padding: 0.34rem 0.45rem;
+            border-radius: 14px;
             overflow-x: auto;
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
-            font-size: 0.8rem;
+            font-size: 0.76rem;
         }
 
         .stApp:has(.game-page-scope) .game-status-strip span,
         .stApp:has(.game-page-scope) .gear-buff-pill {
             flex: 0 0 auto;
-            min-height: 26px;
-            padding: 0.18rem 0.45rem;
+            min-height: 24px;
+            padding: 0.15rem 0.42rem;
             white-space: nowrap;
             line-height: 1.2;
         }
 
         .stApp:has(.game-page-scope) [data-testid="stRadio"] {
-            margin-bottom: -0.25rem;
+            margin: 0.12rem 0 0.42rem;
+        }
+
+        .stApp:has(.game-page-scope) [data-testid="stRadio"] > label {
+            margin-bottom: 0.22rem;
+            font-size: 0.82rem;
+            line-height: 1.1;
+        }
+
+        .stApp:has(.game-page-scope) [data-testid="stRadio"] [role="radiogroup"] {
+            gap: 0.9rem;
+            min-height: 34px;
+        }
+
+        .stApp:has(.game-page-scope) [data-testid="stRadio"] [role="radiogroup"] label {
+            min-height: 30px;
+            padding: 0.08rem 0.12rem;
         }
 
         .stApp:has(.game-page-scope) .stButton button {
             min-height: 40px;
-            border-radius: 15px !important;
+            border-radius: 13px !important;
+            padding-top: 0.22rem !important;
+            padding-bottom: 0.22rem !important;
+            font-size: 0.86rem;
+        }
+
+        .stApp:has(.game-page-scope) .game-over-card {
+            margin: 0.82rem 0 1rem;
+            padding: 1.05rem 1.15rem;
+            line-height: 1.72;
+            overflow-wrap: anywhere;
         }
 
         .avatar-profile-card,
@@ -1279,6 +1384,41 @@ def _inject_style() -> None:
             white-space: pre-wrap;
         }
 
+        .chat-thinking-bubble {
+            min-width: 124px;
+            padding-right: 1rem;
+        }
+
+        .chat-thinking-text {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: rgba(47, 58, 95, 0.78);
+            font-weight: 900;
+        }
+
+        .chat-suggestion-disabled-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin: 0.4rem 0 0.8rem;
+        }
+
+        .chat-suggestion-disabled {
+            min-height: 44px;
+            display: grid;
+            place-items: center;
+            padding: 0.45rem 0.7rem;
+            border-radius: 18px;
+            color: rgba(47, 58, 95, 0.42);
+            background: linear-gradient(180deg, rgba(241, 245, 249, 0.92) 0%, rgba(226, 232, 240, 0.86) 100%);
+            box-shadow: 0 7px 0 rgba(190, 176, 160, 0.48);
+            font-weight: 900;
+            text-align: center;
+            user-select: none;
+            pointer-events: none;
+        }
+
         .chat-confirm-card,
         .game-exit-notice {
             padding: 0.85rem 1rem;
@@ -1318,20 +1458,6 @@ def _inject_style() -> None:
             margin: 0.75rem 0 0.35rem;
             color: var(--kid-ink);
             font-weight: 900;
-        }
-
-        .thinking-card {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.8rem;
-            padding: 0.9rem 1.1rem;
-            margin: 0.75rem 0;
-            border-radius: 22px;
-            background: linear-gradient(135deg, #fff9d7 0%, #e7f5ff 100%);
-            border: 1px solid rgba(72, 168, 245, 0.2);
-            box-shadow: var(--kid-soft-shadow);
-            color: var(--kid-ink);
-            font-weight: 800;
         }
 
         .thinking-dots {
@@ -1464,8 +1590,30 @@ def _inject_style() -> None:
             }
 
             .stApp:has(.game-page-scope) .stButton button {
-                min-height: 44px;
-                font-size: 0.88rem;
+                min-height: 42px;
+                font-size: 0.8rem;
+            }
+
+            .stApp:has(.game-page-scope) [data-testid="stAppViewContainer"] .main .block-container {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+            }
+
+            .stApp:has(.game-page-scope) .game-compact-hero {
+                display: flex !important;
+                grid-template-columns: none;
+                align-items: center;
+                gap: 0.4rem;
+                padding: 0.4rem 0.55rem;
+            }
+
+            .stApp:has(.game-page-scope) .game-compact-title {
+                font-size: 1.02rem;
+            }
+
+            .stApp:has(.game-page-scope) .game-token-pill {
+                font-size: 0.74rem;
+                white-space: nowrap;
             }
 
             .kid-hero {
@@ -1505,6 +1653,30 @@ def _inject_style() -> None:
                 width: fit-content;
             }
 
+            .game-prep-card,
+            .game-loadout-card {
+                min-height: 0;
+                padding: 0.82rem 0.86rem;
+                border-radius: 16px;
+                margin-top: 0.18rem;
+            }
+
+            .game-loadout-card {
+                grid-template-columns: 1fr;
+                gap: 0.58rem;
+            }
+
+            .game-loadout-row {
+                grid-template-columns: 52px minmax(0, 1fr);
+                gap: 0.55rem;
+            }
+
+            .game-prep-card p,
+            .game-loadout-row p {
+                font-size: 0.82rem;
+                line-height: 1.46;
+            }
+
             .growth-hero-visual {
                 min-height: 108px;
             }
@@ -1534,9 +1706,9 @@ def _inject_style() -> None:
                 margin: 0.3rem 0;
             }
 
-            .thinking-card {
-                width: 100%;
-                box-sizing: border-box;
+            .chat-suggestion-disabled-grid {
+                grid-template-columns: 1fr;
+                gap: 0.55rem;
             }
 
             .block-piece-row {
@@ -1567,6 +1739,24 @@ def _inject_style() -> None:
 
             .growth-chart-card {
                 padding: 0.55rem;
+            }
+
+            .stApp:has(.game-page-scope) [data-testid="stVerticalBlock"] {
+                gap: 0.52rem;
+            }
+
+            .stApp:has(.game-page-scope) .game-compact-copy {
+                display: none;
+            }
+
+            .stApp:has(.game-page-scope) .kid-section-title {
+                font-size: 0.95rem;
+                margin: 0.42rem 0 0.34rem;
+            }
+
+            .game-prep-card,
+            .game-loadout-card {
+                margin-bottom: 0.56rem;
             }
         }
         </style>

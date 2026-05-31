@@ -9,12 +9,30 @@ from services.child_service import get_child
 from services.todo_service import complete_todo, create_todo, delete_todo, list_todos
 
 
+TASK_REVIEW_PASSWORD_KEYS = ("TASK_REVIEW_PASSWORD", "COUNSELOR_TASK_REVIEW_PASSWORD")
+PASSWORD_PLACEHOLDERS = {"", "change_me", "your_password_here"}
+
+
 def _get_counselor_task_review_password() -> str | None:
     load_dotenv(override=False)
-    configured = os.getenv("COUNSELOR_TASK_REVIEW_PASSWORD", "").strip()
-    if configured and configured.lower() not in {"change_me", "your_password_here"}:
-        return configured
+    for key in TASK_REVIEW_PASSWORD_KEYS:
+        configured = os.getenv(key, "").strip()
+        if configured.lower() not in PASSWORD_PLACEHOLDERS:
+            return configured
+
+    try:
+        for key in TASK_REVIEW_PASSWORD_KEYS:
+            configured = str(st.secrets.get(key, "")).strip()
+            if configured.lower() not in PASSWORD_PLACEHOLDERS:
+                return configured
+    except Exception:
+        pass
+
     return None
+
+
+def _missing_review_password_message() -> str:
+    return "尚未設定任務審核密碼，請在 .env 或 Streamlit Secrets 設定 TASK_REVIEW_PASSWORD。"
 
 
 def render() -> None:
@@ -41,6 +59,7 @@ def render() -> None:
         unsafe_allow_html=True,
     )
     st.caption(f"目前代幣：{child['tokens']}")
+    st.info("新增任務需要輔導員確認一次；確認後，任務就會加入你的清單。", icon=":material/verified_user:")
 
     with st.form("todo_form", clear_on_submit=True):
         title = st.text_input(
@@ -50,7 +69,7 @@ def render() -> None:
         description = st.text_area(
             "補充說明",
             height=80,
-            placeholder="這個任務可以很小，只要你願意開始就很棒！",
+            placeholder="例如：先寫一個很小的開始步驟，像是先拿出作業本。",
         )
         due_date = st.date_input("截止日期", value=None)
         reward = st.number_input("完成獎勵代幣", min_value=1, max_value=50, value=10)
@@ -68,7 +87,6 @@ def render() -> None:
                 "due_date": due_date if isinstance(due_date, date) else None,
                 "tokens_reward": int(reward),
             }
-            st.info("這個任務需要輔導員幫你確認一下喔。任務確認後，就會加入你的清單。")
 
     _render_pending_task_review()
 
@@ -106,7 +124,6 @@ def render() -> None:
                         "title": str(todo.get("title") or "任務"),
                         "tokens_reward": int(todo.get("tokens_reward") or 0),
                     }
-                    st.info("這個完成紀錄需要輔導員幫你確認一下喔。")
             with cols[3]:
                 if st.button("刪除", key=f"todo_delete_{todo['id']}", use_container_width=True):
                     try:
@@ -133,7 +150,6 @@ def _render_pending_task_review() -> None:
         return
 
     st.markdown('<p class="kid-section-title">輔導員確認</p>', unsafe_allow_html=True)
-    st.info("請輔導員輸入審核密碼，確認任務內容。任務確認後，就會加入你的清單。")
     with st.container(border=True):
         st.write(f"**待確認任務：** {pending.get('title', '')}")
         if pending.get("description"):
@@ -142,6 +158,7 @@ def _render_pending_task_review() -> None:
         password = st.text_input(
             "請輔導員輸入審核密碼",
             type="password",
+            placeholder="例如：輸入輔導員設定的審核密碼",
             key=f"task_review_password_{st.session_state['task_review_nonce']}",
         )
         col_confirm, col_cancel = st.columns(2)
@@ -149,7 +166,7 @@ def _render_pending_task_review() -> None:
             if st.button("確認新增", key="confirm_pending_task", use_container_width=True):
                 review_password = _get_counselor_task_review_password()
                 if not review_password:
-                    st.error("尚未設定輔導員審核密碼，請在環境變數設定 COUNSELOR_TASK_REVIEW_PASSWORD。")
+                    st.error(_missing_review_password_message())
                     return
                 if password != review_password:
                     st.warning("密碼不正確，請再請輔導員確認一次。")
@@ -183,13 +200,13 @@ def _render_pending_task_completion_review() -> None:
         return
 
     st.markdown('<p class="kid-section-title">完成確認</p>', unsafe_allow_html=True)
-    st.info("請輔導員輸入審核密碼，確認這個任務已經完成。確認後，代幣才會加入。")
     with st.container(border=True):
         st.write(f"**待確認完成：** {pending.get('title', '')}")
         st.caption(f"確認後獎勵：{int(pending.get('tokens_reward') or 0)} 代幣")
         password = st.text_input(
             "請輔導員輸入完成審核密碼",
             type="password",
+            placeholder="例如：輸入輔導員設定的完成審核密碼",
             key=f"task_completion_review_password_{st.session_state['task_completion_review_nonce']}",
         )
         col_confirm, col_cancel = st.columns(2)
@@ -197,7 +214,7 @@ def _render_pending_task_completion_review() -> None:
             if st.button("確認完成", key="confirm_pending_task_completion", use_container_width=True):
                 review_password = _get_counselor_task_review_password()
                 if not review_password:
-                    st.error("尚未設定輔導員審核密碼，請在環境變數設定 COUNSELOR_TASK_REVIEW_PASSWORD。")
+                    st.error(_missing_review_password_message())
                     return
                 if password != review_password:
                     st.warning("密碼不正確，請再請輔導員確認一次。")

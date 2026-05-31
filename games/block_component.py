@@ -36,10 +36,11 @@ HTML = """
 
 CSS = """
 .block-neon-shell {
-  width: min(100%, 660px);
-  margin: 0 auto 10px;
+  --block-mini-size: 21px;
+  width: min(100%, 500px);
+  margin: 8px auto 14px;
   padding: 12px;
-  border-radius: 20px;
+  border-radius: 16px;
   color: #f7eaff;
   background:
     radial-gradient(circle at 18% 20%, rgba(180, 41, 255, 0.16), transparent 32%),
@@ -52,9 +53,9 @@ CSS = """
 .block-neon-top {
   display: grid;
   grid-template-columns: 1fr 1.5fr 1fr;
-  gap: 8px;
+  gap: 9px;
   align-items: center;
-  margin: 8px 0 10px;
+  margin: 8px 0 12px;
 }
 
 .block-menu,
@@ -70,26 +71,26 @@ CSS = """
 }
 
 .block-menu {
-  height: 52px;
+  height: 40px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   justify-content: center;
   color: #cf29f4;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 1000;
   cursor: default;
 }
 
 .block-menu-icon {
   display: grid;
-  grid-template-columns: repeat(2, 12px);
-  gap: 3px;
+  grid-template-columns: repeat(2, 9px);
+  gap: 2px;
 }
 
 .block-menu-icon i {
-  width: 12px;
-  height: 12px;
+  width: 9px;
+  height: 9px;
   border-radius: 3px;
   background: #ca27ef;
   box-shadow: 0 0 10px rgba(221, 44, 255, 0.55);
@@ -101,39 +102,39 @@ CSS = """
 }
 
 .block-score-card {
-  height: 58px;
+  height: 44px;
   display: grid;
   place-items: center;
 }
 
 .block-score-card span {
   color: #ad36c8;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
 }
 
 .block-score-card strong {
   color: #d931ff;
-  font-size: clamp(30px, 5vw, 42px);
+  font-size: clamp(24px, 4vw, 34px);
   line-height: 0.9;
   text-shadow: 0 0 16px rgba(217, 49, 255, 0.42);
 }
 
 .block-token-card {
-  height: 52px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   color: #ffc13a;
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .block-coin {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   color: #ff9f2d;
   background: #ffe28a;
@@ -142,19 +143,20 @@ CSS = """
 
 .block-notice {
   min-height: 18px;
-  margin: 0 3px 5px;
+  margin: 0 4px 8px;
   color: #d9a8e7;
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.35;
 }
 
 .block-buff {
-  min-height: 24px;
-  margin: 0 3px 6px;
+  min-height: 28px;
+  margin: 0 4px 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 8px;
+  padding: 5px 9px;
   border-radius: 999px;
   color: #ffe28a;
   background: rgba(255, 255, 255, 0.08);
@@ -169,10 +171,11 @@ CSS = """
 .block-board {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  gap: 2px;
-  padding: 7px;
-  border-radius: 16px;
-  border: 3px solid #b72dec;
+  gap: 1.5px;
+  padding: 5px;
+  margin-top: 2px;
+  border-radius: 12px;
+  border: 2px solid #b72dec;
   background: #15071c;
   box-shadow:
     0 0 0 3px rgba(255, 69, 221, 0.62),
@@ -185,7 +188,7 @@ CSS = """
   overflow: hidden;
   aspect-ratio: 1;
   border: 1px solid #582065;
-  border-radius: 4px;
+  border-radius: 3px;
   background: rgba(23, 4, 29, 0.82);
   cursor: pointer;
   transition: filter 120ms ease, transform 120ms ease, box-shadow 120ms ease;
@@ -264,20 +267,20 @@ CSS = """
 
 .block-tray {
   display: grid;
-  grid-template-columns: 1fr 132px;
-  gap: 10px;
-  padding: 10px;
-  margin-top: 10px;
+  grid-template-columns: 1fr 104px;
+  gap: 7px;
+  padding: 7px;
+  margin-top: 12px;
 }
 
 .block-pieces {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 7px;
 }
 
 .block-piece {
-  min-height: 76px;
+  min-height: 54px;
   border: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
@@ -285,7 +288,7 @@ CSS = """
   touch-action: none;
   display: grid;
   place-items: center;
-  padding: 8px;
+  padding: 5px;
   user-select: none;
   transition: transform 130ms ease, box-shadow 130ms ease, background 130ms ease;
 }
@@ -313,7 +316,7 @@ CSS = """
 }
 
 .block-undo {
-  min-height: 76px;
+  min-height: 54px;
   display: grid;
   place-items: center;
   align-content: center;
@@ -336,7 +339,7 @@ CSS = """
 }
 
 .block-undo-icon {
-  font-size: 26px;
+  font-size: 20px;
   line-height: 1;
 }
 
@@ -369,48 +372,70 @@ CSS = """
 
 .block-mini-cell {
   display: block;
-  width: var(--block-mini-size, 28px);
-  height: var(--block-mini-size, 28px);
+  width: var(--block-mini-size, 21px);
+  height: var(--block-mini-size, 21px);
+}
+
+@media (min-width: 900px) and (max-height: 820px) {
+  .block-neon-shell {
+    --block-mini-size: 19px;
+    width: min(100%, 460px);
+  }
+  .block-piece { min-height: 50px; }
+  .block-undo { min-height: 50px; }
+}
+
+@media (min-width: 900px) and (max-height: 740px) {
+  .block-neon-shell {
+    --block-mini-size: 17px;
+    width: min(100%, 430px);
+  }
+  .block-score-card { height: 40px; }
+  .block-menu,
+  .block-token-card { height: 38px; }
 }
 
 @media (max-width: 700px) {
-  .block-neon-shell { --block-mini-size: 24px; padding: 10px; border-radius: 18px; }
-  .block-neon-top { grid-template-columns: 0.9fr 1.2fr 0.9fr; gap: 6px; }
-  .block-tray { grid-template-columns: 1fr; }
-  .block-pieces { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .block-piece { min-height: 82px; padding: 8px; }
-  .block-undo { min-height: 76px; }
+  .block-neon-shell { --block-mini-size: 19px; padding: 9px; border-radius: 14px; }
+  .block-neon-top { grid-template-columns: 0.9fr 1.2fr 0.9fr; gap: 7px; margin: 7px 0 10px; }
+  .block-tray { grid-template-columns: 1fr 88px; }
+  .block-pieces { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .block-piece { min-height: 58px; padding: 5px; }
+  .block-undo { min-height: 58px; }
   .block-tool { width: 120px; }
-  .block-mini-cell { width: 24px; height: 24px; }
+  .block-mini-cell { width: 20px; height: 20px; }
 }
 
 @media (max-width: 430px) {
   .block-neon-shell {
-    --block-mini-size: 22px;
+    --block-mini-size: 16px;
     width: 100%;
-    padding: 10px;
-    margin-bottom: 12px;
+    padding: 8px;
+    margin: 6px 0 10px;
   }
-  .block-score-card { height: 54px; }
-  .block-score-card strong { font-size: 32px; }
+  .block-score-card { height: 36px; }
+  .block-score-card strong { font-size: 24px; }
   .block-menu,
-  .block-token-card { height: 50px; font-size: 18px; }
+  .block-token-card { height: 36px; font-size: 14px; }
   .block-board {
-    gap: 2px;
-    padding: 7px;
-    border-width: 3px;
-    border-radius: 16px;
+    gap: 1.5px;
+    padding: 4px;
+    border-width: 2px;
+    border-radius: 12px;
   }
   .block-cell { border-width: 1px; }
-  .block-tray { padding: 10px; gap: 10px; }
-  .block-pieces { grid-template-columns: 1fr; }
+  .block-tray { grid-template-columns: 1fr 70px; padding: 6px; gap: 6px; margin-top: 9px; }
+  .block-pieces { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .block-piece {
-    min-height: 78px;
-    padding: 8px;
+    min-height: 46px;
+    padding: 4px;
   }
-  .block-mini-cell { width: 22px; height: 22px; }
+  .block-undo { min-height: 46px; font-size: 12px; }
+  .block-mini-cell { width: 16px; height: 16px; }
   .block-notice,
-  .block-buff { font-size: 12px; }
+  .block-buff { font-size: 10px; }
+  .block-notice { margin-bottom: 6px; }
+  .block-buff { min-height: 24px; margin-bottom: 8px; padding: 4px 7px; }
 }
 """
 
@@ -931,8 +956,8 @@ function pieceGrid(piece) {
   const maxCol = Math.max(...piece.cells.map(([, c]) => c))
   const grid = document.createElement("div")
   grid.className = "block-piece-grid"
-  grid.style.gridTemplateColumns = `repeat(${maxCol + 1}, var(--block-mini-size, 28px))`
-  grid.style.gridTemplateRows = `repeat(${maxRow + 1}, var(--block-mini-size, 28px))`
+  grid.style.gridTemplateColumns = `repeat(${maxCol + 1}, var(--block-mini-size, 21px))`
+  grid.style.gridTemplateRows = `repeat(${maxRow + 1}, var(--block-mini-size, 21px))`
   for (let row = 0; row <= maxRow; row += 1) {
     for (let col = 0; col <= maxCol; col += 1) {
       const cell = document.createElement("span")

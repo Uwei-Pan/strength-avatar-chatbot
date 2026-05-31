@@ -76,8 +76,8 @@ def award_game_score_tokens(child_id: str) -> int:
     return add_tokens(child_id, GAME_SCORE_REWARD, "game_score_reward")
 
 
-def award_diary_tokens(child_id: str) -> int:
-    return add_tokens(child_id, DIARY_REWARD, "diary_reward")
+def award_diary_tokens(child_id: str, amount: int = DIARY_REWARD) -> int:
+    return add_tokens(child_id, amount, "diary_reward")
 
 
 def award_todo_completed_tokens(child_id: str, amount: int = TODO_COMPLETED_REWARD) -> int:

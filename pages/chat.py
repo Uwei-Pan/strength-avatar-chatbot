@@ -15,7 +15,7 @@ from services.strength_service import save_chat_log, save_child_strength
 from services.token_service import award_chat_tokens
 
 
-SUGGESTIONS = [
+DEFAULT_QUICK_PROMPTS = [
     "我今天有點不開心",
     "我今天做了一件很棒的事",
     "我想知道我的亮點",
@@ -37,10 +37,11 @@ def render() -> None:
         return
 
     session = _get_current_session(child)
+    _init_quick_prompts()
     st.markdown(
         f"""
         <div class="kid-hero">
-            <p class="kid-hero-title">和智慧小幫手聊聊</p>
+            <p class="kid-hero-title">和AI小幫手聊聊</p>
             <p class="kid-hero-copy">{escape(str(child["name"]))}，這裡只會顯示本次聊天；過去紀錄收在下方，不會混在一起。</p>
         </div>
         """,
@@ -52,8 +53,8 @@ def render() -> None:
     if notice:
         _render_notice(notice)
 
-    _render_current_chat(session)
-    _render_input(child, session)
+    loading_slot = _render_current_chat(session)
+    _render_input(child, session, loading_slot)
     _render_close_controls(child, session)
     _render_history(child["child_id"])
 
@@ -79,54 +80,101 @@ def _new_session(child_id: str) -> dict[str, Any]:
     }
 
 
-def _render_current_chat(session: dict[str, Any]) -> None:
+def _init_quick_prompts() -> None:
+    if "chat_quick_prompts" not in st.session_state:
+        st.session_state["chat_quick_prompts"] = list(DEFAULT_QUICK_PROMPTS)
+    else:
+        st.session_state["chat_quick_prompts"] = _unique_prompts(st.session_state["chat_quick_prompts"])
+
+
+def _get_quick_prompts() -> list[str]:
+    return _unique_prompts(st.session_state.get("chat_quick_prompts", DEFAULT_QUICK_PROMPTS))
+
+
+def _unique_prompts(prompts: Any) -> list[str]:
+    if not isinstance(prompts, list):
+        prompts = list(DEFAULT_QUICK_PROMPTS)
+    unique: list[str] = []
+    for prompt in prompts:
+        cleaned = str(prompt).strip()
+        if cleaned and cleaned not in unique:
+            unique.append(cleaned)
+    return unique or list(DEFAULT_QUICK_PROMPTS)
+
+
+def _example_label(prompt: str) -> str:
+    cleaned = str(prompt).strip()
+    return cleaned if cleaned.startswith("例如：") else f"例如：{cleaned}"
+
+
+def _strip_example_prefix(prompt: str) -> str:
+    return str(prompt).strip().removeprefix("例如：").strip()
+
+
+def _render_current_chat(session: dict[str, Any]):
     st.markdown('<p class="kid-section-title">本次聊天</p>', unsafe_allow_html=True)
     if not session["messages"]:
         st.markdown(
             """
             <div class="kid-card">
-                新的聊天已準備好。你可以先用一句話告訴小幫手今天發生了什麼，或點下面的小提示開始。
+                新的聊天已準備好。你可以先用一句話告訴小幫手今天發生了什麼，或點下面「例如：」開頭的小提示開始。
             </div>
             """,
             unsafe_allow_html=True,
         )
-        return
+        return st.empty()
 
     for message in session["messages"]:
         role = message.get("role", "assistant")
-        name = "你" if role == "user" else "智慧小幫手"
+        name = "你" if role == "user" else "AI小幫手"
         _render_bubble(role, name, message.get("content", ""))
         if role == "assistant" and message.get("detected_strengths"):
             _render_strength_chips(message["detected_strengths"])
+    return st.empty()
 
 
-def _render_input(child: dict[str, Any], session: dict[str, Any]) -> None:
+def _render_input(child: dict[str, Any], session: dict[str, Any], loading_slot) -> None:
     with st.form("chat_form", clear_on_submit=True, border=True):
         message = st.text_area(
             "輸入本次想聊的內容",
             height=96,
-            placeholder="可以告訴我今天發生的一件小事，或你的心情。例如：我今天有點生氣，因為我覺得被誤會。",
+            placeholder="例如：我今天有點生氣，因為我覺得被誤會。",
         )
         submitted = st.form_submit_button("送出給小幫手", use_container_width=True)
 
-    st.caption("也可以快速開始：")
-    cols = st.columns(len(SUGGESTIONS))
-    for index, prompt in enumerate(SUGGESTIONS):
-        with cols[index]:
-            if st.button(prompt, key=f"chat_suggestion_{index}", use_container_width=True):
-                if _submit_message(child, session, prompt):
-                    st.rerun()
+    st.caption("也可以點一個提示快速開始，這些只是例子：")
+    quick_prompts = _get_quick_prompts()
+    if quick_prompts:
+        cols = st.columns(len(quick_prompts))
+        for index, prompt in enumerate(quick_prompts):
+            with cols[index]:
+                if st.button(_example_label(prompt), key=f"chat_suggestion_{index}", use_container_width=True):
+                    if _submit_message(
+                        child,
+                        session,
+                        _strip_example_prefix(prompt),
+                        loading_slot,
+                        is_suggestion=True,
+                    ):
+                        st.rerun()
 
     if submitted:
         cleaned = message.strip()
         if not cleaned:
             st.warning("可以先打幾個字，慢慢說就好。")
             return
-        if _submit_message(child, session, cleaned):
+        if _submit_message(child, session, cleaned, loading_slot):
             st.rerun()
 
 
-def _submit_message(child: dict[str, Any], session: dict[str, Any], cleaned: str) -> bool:
+def _submit_message(
+    child: dict[str, Any],
+    session: dict[str, Any],
+    cleaned: str,
+    loading_slot,
+    *,
+    is_suggestion: bool = False,
+) -> bool:
     prior_user_messages = [
         message["content"]
         for message in session["messages"]
@@ -135,20 +183,15 @@ def _submit_message(child: dict[str, Any], session: dict[str, Any], cleaned: str
     session["messages"].append({"role": "user", "content": cleaned, "created_at": _now_iso()})
     user_message_index = len(session["messages"]) - 1
 
-    loading_slot = st.empty()
     with loading_slot.container():
-        st.markdown(
-            """
-            <div class="thinking-card">
-                <span class="thinking-dots"><span></span><span></span><span></span></span>
-                <span>小幫手正在想一想，幫你整理回覆...</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        _render_bubble("user", "你", cleaned)
+        _render_thinking_bubble()
 
-    with st.spinner("正在幫你整理回覆，請等一下喔！"):
-        result = analyze_child_message(child, cleaned)
+    result = analyze_child_message(child, cleaned)
+    if is_suggestion:
+        token_events = []
+        tokens_earned = 0
+    else:
         token_events = evaluate_chat_token_events(
             cleaned,
             result["detected_strengths"],
@@ -156,13 +199,13 @@ def _submit_message(child: dict[str, Any], session: dict[str, Any], cleaned: str
             user_message_index,
         )
         tokens_earned = token_event_total(token_events)
-        if tokens_earned:
-            try:
-                award_chat_tokens(child["child_id"], tokens_earned)
-            except DatabaseConnectionError as exc:
-                loading_slot.empty()
-                st.error(str(exc))
-                return False
+    if tokens_earned:
+        try:
+            award_chat_tokens(child["child_id"], tokens_earned)
+        except DatabaseConnectionError as exc:
+            loading_slot.empty()
+            st.error(str(exc))
+            return False
 
     loading_slot.empty()
     session["token_events"].extend(token_events)
@@ -171,6 +214,7 @@ def _submit_message(child: dict[str, Any], session: dict[str, Any], cleaned: str
         tokens_earned,
         token_events,
         result["emotion"],
+        include_guidance=not is_suggestion,
     )
     session["messages"].append(
         {
@@ -183,18 +227,19 @@ def _submit_message(child: dict[str, Any], session: dict[str, Any], cleaned: str
             "follow_up_question": result.get("follow_up_question", ""),
             "mode": result.get("mode", "mock"),
             "error": result.get("error", ""),
+            "source": "suggestion" if is_suggestion else "typed",
         }
     )
     st.session_state["active_chat_session"] = session
     if result.get("mode") == "gemini":
         st.session_state["chat_notice"] = {
             "type": "success",
-            "text": "智慧小幫手回覆完成。",
+            "text": "AI 小幫手已回覆成功",
         }
     elif result.get("error"):
         st.session_state["chat_notice"] = {
             "type": "warning",
-            "text": "智慧小幫手暫時連不上，先用練習回覆陪你聊。",
+            "text": "Gemini 暫時連不上，現在使用 mock 練習回覆。",
         }
     return True
 
@@ -299,7 +344,7 @@ def _render_history(child_id: str) -> None:
                 )
                 with st.expander("查看原始對話", expanded=False):
                     for message in session.get("messages", []):
-                        name = "你" if message.get("role") == "user" else "智慧小幫手"
+                        name = "你" if message.get("role") == "user" else "AI小幫手"
                         st.markdown(f"**{name}：** {message.get('content', '')}")
 
 
@@ -308,12 +353,16 @@ def _with_token_guidance(
     tokens_earned: int,
     token_events: list[dict[str, Any]],
     emotion: str,
+    *,
+    include_guidance: bool = True,
 ) -> str:
+    if not include_guidance:
+        return reply
     if emotion == "需要協助":
         return reply
     if tokens_earned > 0:
         reason_text = _token_reason_text(token_events)
-        return f"{reply}\n\n我看見你{reason_text}，這次你獲得了 {tokens_earned} 枚優勢代幣。"
+        return f"{reply}\n\n我看見你{reason_text}，獲得 +{tokens_earned} 優勢代幣。"
     return (
         f"{reply}\n\n我還需要多一點故事，才能更好看見你的亮點。"
         "你可以再告訴我：當時發生了什麼事，或你做了什麼選擇嗎？"
@@ -336,7 +385,63 @@ def _render_notice(notice: dict[str, str]) -> None:
     if notice.get("type") == "warning":
         st.warning(notice.get("text", ""))
     else:
-        st.success(notice.get("text", ""))
+        st.markdown(
+            f"""
+            <style>
+              @keyframes chatNoticeFadeOut {{
+                0%, 84% {{
+                  opacity: 1;
+                  transform: translateY(0);
+                  max-height: 80px;
+                  margin-bottom: 0.75rem;
+                }}
+                100% {{
+                  opacity: 0;
+                  transform: translateY(-4px);
+                  max-height: 0;
+                  margin-bottom: 0;
+                  padding-top: 0;
+                  padding-bottom: 0;
+                  visibility: hidden;
+                }}
+              }}
+
+              .chat-auto-success-notice {{
+                padding: 0.7rem 0.95rem;
+                margin: 0.35rem 0 0.75rem;
+                border-radius: 16px;
+                border: 1px solid rgba(22, 101, 52, 0.2);
+                background: linear-gradient(135deg, rgba(220, 252, 231, 0.96), rgba(209, 250, 229, 0.86));
+                color: #166534;
+                font-weight: 900;
+                box-shadow: 0 8px 20px rgba(95, 111, 143, 0.12);
+                overflow: hidden;
+                animation: chatNoticeFadeOut 5s ease forwards;
+              }}
+            </style>
+            <div class="chat-auto-success-notice">{escape(notice.get("text", ""))}</div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def _render_thinking_bubble() -> None:
+    st.markdown(
+        """
+        <div class="chat-message-row is-ai">
+            <div class="chat-bubble chat-bubble-ai chat-thinking-bubble">
+                <span class="chat-name">AI小幫手</span>
+                <span class="chat-thinking-text">
+                    <span class="thinking-dots" aria-label="AI 小幫手正在思考">
+                        <span></span><span></span><span></span>
+                    </span>
+                    <span>思考中</span>
+                </span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_bubble(role: str, name: str, content: str) -> None:

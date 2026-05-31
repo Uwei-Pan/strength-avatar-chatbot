@@ -34,7 +34,7 @@ def render() -> None:
         content = st.text_area(
             "今天想記下什麼？",
             height=160,
-            placeholder="可以寫下今天的一件小事，也可以寫你的心情喔！例如：今天最開心、最難過或最想分享的是什麼？",
+            placeholder="例如：今天最開心、最難過，或最想分享的一件小事。",
         )
         submitted = st.form_submit_button("儲存日記")
 
@@ -50,11 +50,16 @@ def render() -> None:
             except DatabaseConnectionError as exc:
                 st.error(str(exc))
             else:
-                st.success(f"日記已儲存，獲得 +{result['tokens_earned']} 代幣")
+                if int(result.get("tokens_earned") or 0) > 0:
+                    st.success(f"日記已儲存，獲得 +{result['tokens_earned']} 代幣")
+                else:
+                    st.success("日記已儲存，謝謝你願意記錄今天。")
+                for message in result.get("token_messages", [])[1:]:
+                    st.caption(message)
                 if result.get("mode") == "gemini":
-                    st.caption("智慧小幫手已連線")
+                    st.caption("AI 小幫手已幫你整理這篇日記。")
                 elif result.get("error"):
-                    st.warning("智慧小幫手暫時連不上，先用練習回覆陪你整理。")
+                    st.info("日記已儲存，AI 小幫手晚點再來幫你整理。")
                 st.markdown(f"**小幫手：** {result['reply_to_child']}")
                 if result["detected_strengths"]:
                     st.write("這篇日記裡有一些亮點：")

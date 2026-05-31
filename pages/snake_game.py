@@ -1,4 +1,5 @@
 import random
+import time
 from html import escape
 from typing import Any
 
@@ -47,8 +48,7 @@ REFLECTION_QUESTIONS = [
 ]
 
 REFLECTION_PLACEHOLDER = (
-    "寫下你的想法後，就可以再挑戰一次！例如：我想慢慢移動，不要太急，"
-    "或我剛剛雖然輸了但有努力看方向。"
+    "例如：我想慢慢移動，不要太急；或我剛剛雖然輸了，但有努力看方向。"
 )
 
 GAME_LABELS = {
@@ -59,6 +59,7 @@ GAME_LABELS = {
 GAME_OVER_LABELS = {
     "hit_wall": "你撞到牆壁了！",
     "hit_self": "你撞到自己了！",
+    "hit_obstacle": "你碰到星岩障礙了！",
     "no_valid_moves": "目前沒有方塊可以放囉！",
 }
 
@@ -167,24 +168,19 @@ def _render_snake(child: dict[str, Any]) -> None:
         return
 
     if not state["started"]:
-        st.markdown(
-            """
-            <div class="kid-card">
-                使用方向鍵移動或滑鼠操控。吃到星光點心 +10；
-                大顆、會移動的優勢果實 +40，結束時會幫你整理吃到哪些優勢果實。
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        _render_equipment_preview(child, "snake")
-        if st.button("開始貪食蛇", icon=":material/play_arrow:", use_container_width=True):
-            if _spend_start_cost(child_id):
-                st.session_state["snake_game"] = _new_snake_state(
-                    started=True,
-                    tokens_spent=GAME_START_COST,
-                    active_modifiers=get_active_game_modifiers(child, "snake"),
-                )
-                st.rerun()
+        prep_col, loadout_col = st.columns([1, 1], gap="medium", vertical_alignment="top")
+        with prep_col:
+            _render_game_prep_card("snake")
+            if st.button("開始貪食蛇", icon=":material/play_arrow:", use_container_width=True, key="start_snake_game"):
+                if _spend_start_cost(child_id):
+                    st.session_state["snake_game"] = _new_snake_state(
+                        started=True,
+                        tokens_spent=GAME_START_COST,
+                        active_modifiers=get_active_game_modifiers(child, "snake"),
+                    )
+                    st.rerun()
+        with loadout_col:
+            _render_game_loadout_card(child, "snake")
         return
 
     _render_running_toolbar("snake", state)
@@ -225,6 +221,7 @@ def _new_snake_state(
         "game_over": False,
         "game_over_reason": "",
         "paused": False,
+        "countdown_started_at_ms": int(time.time() * 1000) if started else 0,
         "saved": False,
         "tokens_spent": int(tokens_spent),
         "active_modifiers": modifiers,
@@ -296,24 +293,19 @@ def _render_block_puzzle(child: dict[str, Any]) -> None:
         return
 
     if not state.get("started"):
-        st.markdown(
-            """
-            <div class="kid-card">
-                把下方方塊拖曳到棋盤上，看到預覽後放開就能放置。填滿整列或整行就會消除加分；
-                放錯一步可以按「返回上一步」，當三個方塊都放不下時，就要先回答小問題才能再來一局。
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        _render_equipment_preview(child, "block_puzzle")
-        if st.button("開始方塊消除", icon=":material/play_arrow:", use_container_width=True):
-            if _spend_start_cost(child_id):
-                st.session_state["block_puzzle_game"] = _new_block_state(
-                    started=True,
-                    tokens_spent=GAME_START_COST,
-                    active_modifiers=get_active_game_modifiers(child, "block_puzzle"),
-                )
-                st.rerun()
+        prep_col, loadout_col = st.columns([1, 1], gap="medium", vertical_alignment="top")
+        with prep_col:
+            _render_game_prep_card("block_puzzle")
+            if st.button("開始方塊消除", icon=":material/play_arrow:", use_container_width=True, key="start_block_game"):
+                if _spend_start_cost(child_id):
+                    st.session_state["block_puzzle_game"] = _new_block_state(
+                        started=True,
+                        tokens_spent=GAME_START_COST,
+                        active_modifiers=get_active_game_modifiers(child, "block_puzzle"),
+                    )
+                    st.rerun()
+        with loadout_col:
+            _render_game_loadout_card(child, "block_puzzle")
         return
 
     _render_running_toolbar("block_puzzle", state)
@@ -530,7 +522,7 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
         submitted = st.form_submit_button("送出回答，再玩一次", use_container_width=True)
 
     if not submitted:
-        st.caption("回答不能空白；可以寫感覺、努力的地方，或下一次想用的策略。")
+        st.caption("這裡只是提示；例如：可以寫感覺、努力的地方，或下一次想用的策略。")
         return
 
     cleaned = answer.strip()
@@ -598,6 +590,63 @@ def _metric_score(key: str) -> str:
     score = int(state.get("score", 0))
     tokens = int(state.get("tokens_earned", 0))
     return f"{score} 分 / +{tokens}"
+
+
+def _render_game_prep_card(game_type: str) -> None:
+    if game_type == "snake":
+        title = "準備區"
+        standby = "按開始後會先倒數 5 秒。"
+        how_to = "例如：倒數時先按方向鍵、滑鼠或用手指設定方向；倒數結束後蛇才會開始移動。吃星光點心 +10，大顆優勢果實 +40。"
+    else:
+        title = "準備區"
+        standby = "按開始後會發給三個方塊。"
+        how_to = "例如：把方塊拖到棋盤上，填滿整列或整行會消除加分；放錯一步可按返回上一步。"
+    st.markdown(
+        f"""
+        <div class="game-prep-card">
+            <span class="game-entry-kicker">{escape(title)}</span>
+            <strong>{escape(standby)}</strong>
+            <p>{escape(how_to)}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_game_loadout_card(child: dict[str, Any], game_type: str) -> None:
+    character = get_character_profile(child.get("selected_character"))
+    ability = character.get("ability") or {}
+    outfit = get_selected_outfit_profile(child)
+    modifiers = get_active_game_modifiers(child, game_type)
+    character_modifier = modifiers.get("character") or {}
+    outfit_buff = modifiers.get("outfit") or {}
+    outfit_label = (
+        f"{outfit_buff.get('buff_label')}（本局套用）"
+        if outfit_buff.get("applies")
+        else f"{outfit_buff.get('buff_label') or '本局沒有服裝助力'}"
+    )
+    st.markdown(
+        f"""
+        <div class="game-loadout-card">
+            <span class="game-entry-kicker">本局助力</span>
+            <div class="game-loadout-row">
+                {character_visual_html(character, "is-small")}
+                <div>
+                    <strong>角色：{escape(str(character.get("display_name") or "角色"))}</strong>
+                    <p>{escape(str(character_modifier.get("label") or ability.get("ability_description") or "角色會陪你一起挑戰"))}</p>
+                </div>
+            </div>
+            <div class="game-loadout-row">
+                {outfit_visual_html(outfit, "is-small")}
+                <div>
+                    <strong>服裝：{escape(str(outfit.get("display_name") or "尚未選擇"))}</strong>
+                    <p>{escape(str(outfit_label))}</p>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_equipment_preview(child: dict[str, Any], game_type: str) -> None:
