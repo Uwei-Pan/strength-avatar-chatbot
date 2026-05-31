@@ -1,6 +1,6 @@
-# 兒少優勢探索 AI MVP
+# ai-for-children
 
-這是一個 Streamlit + MySQL 的兒少優勢探索 MVP。孩子登入後可以和AI小幫手聊天、寫心情日記、完成任務、玩遊戲、累積 tokens，並把成長亮點保存到資料庫。
+這是一個 Streamlit + MySQL 的兒少 AI 陪伴與優勢日記 MVP。孩子登入後可以和AI小幫手聊天、寫心情日記、完成任務、玩遊戲、累積 tokens，並把成長亮點保存到資料庫。
 
 ## 技術與部署判斷
 
@@ -41,18 +41,11 @@ cp .env.example .env
 必要設定：
 
 ```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=strength_avatar
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
-GEMINI_FALLBACK_MODELS=
-TASK_REVIEW_PASSWORD=your_password_here
+GEMINI_API_KEY=your_api_key_here
 ```
 
 不要把真實 `.env`、`.env.local`、`.envc` 或 `.streamlit/secrets.toml` commit 到 GitHub。
+資料庫未設定時會使用本機預設值，預設 database 名稱為 `ai_for_children`。
 
 ## 初始化資料庫
 
@@ -152,8 +145,6 @@ streamlit run app.py --server.port $PORT --server.address 0.0.0.0
    - `DB_PASSWORD`
    - `DB_NAME`
    - `GEMINI_API_KEY`
-   - `GEMINI_MODEL`
-   - `GEMINI_FALLBACK_MODELS`
    - `TASK_REVIEW_PASSWORD`
 8. 部署前或首次部署後，在能連到同一個 MySQL 的環境執行：
 
@@ -185,10 +176,8 @@ DB_HOST = "your-cloud-mysql-host"
 DB_PORT = "3306"
 DB_USER = "your-user"
 DB_PASSWORD = "your-password"
-DB_NAME = "strength_avatar"
+DB_NAME = "ai_for_children"
 GEMINI_API_KEY = "your-key"
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_FALLBACK_MODELS = ""
 TASK_REVIEW_PASSWORD = "your-review-password"
 ```
 

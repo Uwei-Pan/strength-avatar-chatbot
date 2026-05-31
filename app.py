@@ -27,7 +27,7 @@ PAGE_LABELS = {
 
 
 def main() -> None:
-    st.set_page_config(page_title="優勢探索日記", page_icon="★", layout="wide")
+    st.set_page_config(page_title="ai-for-children", page_icon="★", layout="wide")
     _inject_style()
 
     if "page" not in st.session_state:

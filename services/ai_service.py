@@ -7,15 +7,11 @@ from typing import Any
 from dotenv import load_dotenv
 
 from services.strength_service import (
-    build_strength_prompt_context,
     detect_strengths_rule_based,
     get_strength_definition_by_name,
-    get_strength_interpretation_principles,
     normalize_strength_name,
 )
 from services.student_profile_service import (
-    get_ai_case_context,
-    get_ai_observation_context,
     get_random_strength_case,
 )
 
@@ -27,10 +23,17 @@ ENVC_PATH = PROJECT_ROOT / ".envc"
 PLACEHOLDER_API_KEYS = {
     "",
     "your_gemini_api_key_here",
+    "your_api_key_here",
     "你的_api_key",
     "change_me",
 }
 DIARY_STRENGTH_CONFIDENCE_THRESHOLD = 0.65
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
+DIARY_GEMINI_MIN_CHINESE_CHARS = 10
+DIARY_GEMINI_MAX_INPUT_CHARS = 500
+DIARY_GEMINI_MAX_OUTPUT_TOKENS = 150
+CHAT_GEMINI_MAX_OUTPUT_TOKENS = 180
+REFLECTION_GEMINI_MAX_OUTPUT_TOKENS = 120
 
 load_dotenv(dotenv_path=ENVC_PATH, override=False)
 load_dotenv(dotenv_path=ENV_PATH, override=True)
@@ -100,39 +103,29 @@ def _load_ai_environment() -> None:
 
 def get_gemini_api_key() -> str:
     _load_ai_environment()
-    for env_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"):
-        api_key = os.getenv(env_name, "").strip().strip('"').strip("'")
-        if api_key and api_key.lower() not in PLACEHOLDER_API_KEYS:
-            return api_key
-        secret_key = _get_streamlit_secret(env_name)
-        if secret_key and secret_key.lower() not in PLACEHOLDER_API_KEYS:
-            return secret_key
+    api_key = os.getenv("GEMINI_API_KEY", "").strip().strip('"').strip("'")
+    if api_key and api_key.lower() not in PLACEHOLDER_API_KEYS:
+        return api_key
+    secret_key = _get_streamlit_secret("GEMINI_API_KEY")
+    if secret_key and secret_key.lower() not in PLACEHOLDER_API_KEYS:
+        return secret_key
     return ""
 
 
 def get_gemini_model() -> str:
     _load_ai_environment()
     model = os.getenv("GEMINI_MODEL", "").strip().strip('"').strip("'")
-    return model or _get_streamlit_secret("GEMINI_MODEL") or "gemini-2.5-flash"
+    model = model or _get_streamlit_secret("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
+    return model if _is_allowed_flash_model(model) else DEFAULT_GEMINI_MODEL
 
 
 def get_gemini_model_candidates() -> list[str]:
-    _load_ai_environment()
-    candidates = [get_gemini_model()]
-    raw_fallbacks = os.getenv("GEMINI_FALLBACK_MODELS", "").strip()
-    if not raw_fallbacks:
-        raw_fallbacks = _get_streamlit_secret("GEMINI_FALLBACK_MODELS")
-    if raw_fallbacks:
-        candidates.extend(
-            item.strip().strip('"').strip("'")
-            for item in raw_fallbacks.split(",")
-            if item.strip()
-        )
-    unique: list[str] = []
-    for model in candidates:
-        if model and model not in unique:
-            unique.append(model)
-    return unique
+    return [get_gemini_model()]
+
+
+def _is_allowed_flash_model(model: str) -> bool:
+    lowered = model.strip().lower()
+    return bool(lowered) and "gemini" in lowered and "flash" in lowered and "pro" not in lowered
 
 
 def _get_streamlit_secret(name: str) -> str:
@@ -148,15 +141,13 @@ def get_gemini_setup_status() -> dict[str, Any]:
     _load_ai_environment()
     api_key = get_gemini_api_key()
     key_source = ""
-    for env_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"):
-        value = os.getenv(env_name, "").strip().strip('"').strip("'")
-        if value and value.lower() not in PLACEHOLDER_API_KEYS:
-            key_source = env_name
-            break
-        secret_value = _get_streamlit_secret(env_name)
+    value = os.getenv("GEMINI_API_KEY", "").strip().strip('"').strip("'")
+    if value and value.lower() not in PLACEHOLDER_API_KEYS:
+        key_source = "GEMINI_API_KEY"
+    else:
+        secret_value = _get_streamlit_secret("GEMINI_API_KEY")
         if secret_value and secret_value.lower() not in PLACEHOLDER_API_KEYS:
-            key_source = f"st.secrets.{env_name}"
-            break
+            key_source = "st.secrets.GEMINI_API_KEY"
     return {
         "has_api_key": bool(api_key),
         "key_source": key_source,
@@ -195,6 +186,8 @@ def analyze_diary_entry(child_profile: dict[str, Any], content: str) -> dict[str
     cleaned = content.strip()
     if not cleaned:
         return _diary_fallback_result("謝謝你願意記錄今天。")
+    if _count_chinese_chars(cleaned) < DIARY_GEMINI_MIN_CHINESE_CHARS:
+        return _diary_fallback_result("日記已儲存，謝謝你願意記錄今天。", mode="local_skip")
 
     api_key = get_gemini_api_key()
     if not api_key:
@@ -204,7 +197,7 @@ def analyze_diary_entry(child_profile: dict[str, Any], content: str) -> dict[str
         )
 
     try:
-        return _analyze_diary_with_gemini(child_profile, cleaned, api_key)
+        return _analyze_diary_with_gemini(child_profile, cleaned[:DIARY_GEMINI_MAX_INPUT_CHARS], api_key)
     except Exception as exc:
         return _diary_fallback_result(
             "日記已儲存，AI 小幫手晚點再來幫你整理。",
@@ -256,56 +249,45 @@ def _analyze_diary_with_gemini(
         )
 
     client = genai.Client(api_key=api_key)
-    strength_context = build_strength_prompt_context()
     prompt = f"""
-你正在協助孩子整理一篇心情日記。請用溫柔、鼓勵、適合兒童的繁體中文判斷日記中是否有「明確可由文字支持」的優勢。
+你是兒童日記優勢判斷助手。
+請根據日記內容判斷是否明確出現以下任一優勢：
+仁慈、勇敢、勤奮、希望、感恩、自我規範、社交智慧、真誠、好奇、創造力、領導、團隊合作、公平、寬恕、謙虛、審慎、幽默、愛、愛學習、判斷力、觀察力、毅力、欣賞美與卓越、靈性。
 
-孩子名字：{child_profile.get("name", "孩子")}
-日記內容：
+規則：
+1. 只有明確出現行為或想法時才判斷優勢。
+2. 不明確就 has_strength=false。
+3. 不要硬判斷。
+4. 只回傳 JSON，不要其他文字。
+
+日記：
 {content}
 
-只能使用以下 24 種優勢名稱，不可以創造其他名稱：
-{", ".join(sorted(ALLOWED_STRENGTH_NAMES))}
-
-{strength_context}
-
-請只回傳 JSON，不要加 Markdown：
+回傳格式：
 {{
-  "has_strength": true,
-  "strength_name": "勇敢",
-  "confidence": 0.82,
-  "reason": "孩子描述了面對困難仍願意說出感受。",
-  "encouragement": "你願意把不舒服說出來，這是很勇敢的一步。"
+  "has_strength": true/false,
+  "strength_name": "優勢名稱或 null",
+  "confidence": 0到1,
+  "encouragement": "一句溫柔鼓勵"
 }}
-
-如果沒有明確優勢，請回傳：
-{{
-  "has_strength": false,
-  "strength_name": null,
-  "confidence": 0,
-  "reason": "",
-  "encouragement": "謝謝你願意記錄今天。"
-}}
-
-判斷規則：
-- 只有日記有具體事件、感受、行動或選擇時，才可以判斷優勢。
-- 不要過度貼標籤，不要每篇都硬判斷出優勢。
-- 如果只是短句、心情詞、問候、重複字、亂碼、或證據不清楚，has_strength 必須是 false。
-- confidence 需要反映證據強度；不確定時請低於 0.65。
-- encouragement 不要說「未看見優勢」「沒有優勢」「判斷不出」等讓孩子受挫的話。
-- encouragement 最多 2 句，保持溫柔自然，不要像分析報告。
 """
     response, used_model = _generate_gemini_content(
         client,
         contents=prompt,
         config=types.GenerateContentConfig(
-            responseMimeType="application/json",
-            temperature=0.15,
+            response_mime_type="application/json",
+            max_output_tokens=DIARY_GEMINI_MAX_OUTPUT_TOKENS,
+            temperature=0.2,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
+        max_retries=1,
     )
     parsed = _parse_json(getattr(response, "text", "") or "")
     strength = _diary_strength_from_json(parsed, content)
-    encouragement = str(parsed.get("encouragement") or "").strip() or "日記已儲存，謝謝你分享。"
+    encouragement = _safe_diary_encouragement(
+        str(parsed.get("encouragement") or "").strip(),
+        has_strength=bool(strength),
+    )
     return {
         "reply_to_child": encouragement,
         "emotion": _guess_emotion(content),
@@ -321,6 +303,7 @@ def _analyze_diary_with_gemini(
             "strength_name": strength["strength_name"] if strength else None,
             "confidence": strength["confidence"] if strength else 0,
             "reason": str(parsed.get("reason") or ""),
+            "encouragement": encouragement,
         },
     }
 
@@ -362,7 +345,7 @@ def _diary_strength_from_json(parsed: dict[str, Any], content: str) -> dict[str,
     }
 
 
-def _diary_fallback_result(reply: str, *, error: str = "") -> dict[str, Any]:
+def _diary_fallback_result(reply: str, *, error: str = "", mode: str = "fallback") -> dict[str, Any]:
     return {
         "reply_to_child": reply,
         "emotion": "平穩",
@@ -370,13 +353,14 @@ def _diary_fallback_result(reply: str, *, error: str = "") -> dict[str, Any]:
         "should_award_tokens": True,
         "tokens_earned": 0,
         "follow_up_question": "",
-        "mode": "fallback",
+        "mode": mode,
         "error": error,
         "diary_analysis": {
             "has_strength": False,
             "strength_name": None,
             "confidence": 0,
             "reason": "",
+            "encouragement": reply,
         },
     }
 
@@ -413,7 +397,7 @@ def _validate_reflection_with_gemini(
 }}
 
 判斷規則：
-- 必須至少一句完整想法，約 6 個中文字/字元以上。
+- 必須至少一句完整想法，約 10 個中文字/字元以上。
 - 合格回答要有具體內容，例如事件、感受、行動、想法、想再試一次的方法、或提到某個優勢。
 - 如果只是重複字、亂打、只有「不知道」「還好」「可以」「我要復活」、無意義符號、或明顯敷衍，請判斷不合格。
 - 不要責備孩子；提醒要短、溫柔、明確。
@@ -422,9 +406,12 @@ def _validate_reflection_with_gemini(
         client,
         contents=prompt,
         config=types.GenerateContentConfig(
-            responseMimeType="application/json",
-            temperature=0.1,
+            response_mime_type="application/json",
+            max_output_tokens=REFLECTION_GEMINI_MAX_OUTPUT_TOKENS,
+            temperature=0.2,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
+        max_retries=1,
     )
     raw_text = getattr(response, "text", "") or ""
     parsed = _parse_json(raw_text)
@@ -440,14 +427,14 @@ def _validate_reflection_with_gemini(
 
 def _rule_validate_reflection(answer: str) -> dict[str, Any]:
     cleaned = answer.strip()
-    if len(cleaned) < 6:
+    compact = re.sub(r"\s+", "", cleaned)
+    if len(compact) < 10:
         return {
             **REFLECTION_VALIDATION_FALLBACK,
             "reason": "回答太短。",
-            "gentle_prompt": "請再多寫一點，例如：我想慢慢移動，不要太急。",
+            "gentle_prompt": "請寫滿 10 個字以上，例如：我想慢慢移動，不要太急。",
         }
 
-    compact = re.sub(r"\s+", "", cleaned)
     unique_chars = set(compact)
     low_signal = ["不知道", "隨便", "還好", "沒有", "沒事", "可以了", "我要復活"]
     if any(phrase == compact or compact.count(phrase) >= 2 for phrase in low_signal):
@@ -503,13 +490,9 @@ def _analyze_with_gemini(
         for item in child_profile.get("owned_strengths", [])
         if item.get("name_zh")
     ]
-    case_context = get_ai_case_context(child_profile.get("child_id", ""))
-    observation_context = get_ai_observation_context(child_profile.get("child_id", ""))
-    strength_context = build_strength_prompt_context()
-    strength_principles = "\n".join(f"- {item}" for item in get_strength_interpretation_principles())
     # 調整聊天回覆長度與語氣時，優先修改下方「規則」段落。
     prompt = f"""
-你是一位溫暖、支持、鼓勵孩子的兒少優勢探索 AI 夥伴。請用繁體中文回覆。
+你是一位溫暖、支持、鼓勵孩子的 ai-for-children AI 夥伴。請用繁體中文回覆。
 你的任務不是批評、命令或診斷孩子，而是陪孩子一起理解感受、看見自己的優勢，並給出簡單可行的小建議。
 你會使用 24 個成長亮點作為觀察參考，但不得要求孩子填寫問卷，也不得宣稱這是正式心理測驗。
 
@@ -517,22 +500,11 @@ def _analyze_with_gemini(
 - 名字：{child_profile.get("name", "孩子")}
 - 已知優勢：{", ".join(sorted(set(strengths))) if strengths else "尚未提供"}
 
-可引用的過去匿名案例：
-{case_context}
-
-可優先參考的跨來源觀察資料：
-{observation_context}
-
 孩子訊息：
 {message}
 
 只能使用以下 24 種優勢名稱，不可以創造其他名稱：
 {", ".join(sorted(ALLOWED_STRENGTH_NAMES))}
-
-{strength_context}
-
-亮點觀察守則：
-{strength_principles}
 
 請只回傳 JSON，不要加 Markdown。格式必須是：
 {{
@@ -541,32 +513,22 @@ def _analyze_with_gemini(
   "detected_strengths": [
     {{
       "strength_name": "優勢名稱",
-      "confidence_level": "high | medium | low",
-      "confidence": 0.0,
-      "evidence_count": 1,
-      "evidence_sources": ["counseling_record | journal | task | game_response | platform_interaction"],
-      "evidence_quotes": ["孩子或紀錄中的具體短句"],
-      "evidence_text": "孩子訊息中的具體 evidence",
-      "reason": "整理原因",
-      "reasoning_summary": "用 1-2 句說明這些行為如何展現此優勢；若紀錄較少請說可以繼續觀察",
-      "child_friendly_feedback": "給孩子看的鼓勵回饋，必須引用具體行為",
-      "teacher_facing_explanation": "給老師/輔導者看的解釋，說明來源、信心與限制"
+      "confidence": 0.0
     }}
   ],
-  "should_award_tokens": true,
-  "tokens_earned": 10,
   "follow_up_question": "一個簡單追問"
 }}
 
 規則：
 - reply_to_child 要像可靠的大哥哥大姐姐，溫暖、鼓勵、有陪伴感，不要像老師訓話。
-- reply_to_child 請短而溫柔：以 2 到 3 句為主，最多 4 句，總長約 90 個中文字以內。
+- reply_to_child 請短而溫柔：最多 2 句，總長 55 個中文字以內。
 - 回覆結構建議：一句接住孩子的情緒；一句肯定具體努力或亮點；一句給小小下一步或追問。不要每次都完整長篇整理。
 - 如果要提到優勢，只提 1 個最明確的優勢，並用一句話說完，不要長篇解釋。
 - 一次只問 1 個主要問題，不要一次丟很多問題給孩子。
-- follow_up_question 也要短，只留 1 個清楚問題，約 20 個中文字以內。
+- follow_up_question 也要短，只留 1 個清楚問題，約 14 個中文字以內。
 - 可以自然引導孩子多說「發生了什麼、當時感覺、做了什麼選擇、哪裡做得不錯、要不要試一個小任務」。
 - 如果孩子分享太短，例如「嗨」「不知道」「還好」，請溫柔說明還需要多一點故事才能看見亮點，並只追問一個具體問題。
+- 如果孩子說的是負面內容、被誤會、被罵、衝突、生氣、難過、委屈或壓力，請先承接情緒並追問細節；detected_strengths 回傳 []，不要急著判斷優勢。
 - 不要在 reply_to_child 裡自行宣告精確代幣數；後端會依照孩子分享的具體度附加實際代幣提示。
 - 可以用自然口吻提醒：「說得越具體，我越能看見你的亮點，也可能幫你獲得優勢代幣。」
 - 不責備、不說教、不過度診斷，也不要要求孩子立刻變好。
@@ -576,10 +538,8 @@ def _analyze_with_gemini(
 - 如果兩項優勢證據量接近，可以在 reasoning_summary 說「相近」或「可能並列」，不要強行排序。
 - 不要說任何優勢是弱點，也不要把孩子和其他學生比較。
 - 優勢是可成長的觀察，不是固定人格標籤。
-- evidence_quotes 必須是可從孩子訊息或觀察資料中找到的短句；不能編造紀錄。
-- evidence_sources 只能使用 counseling_record、journal、task、game_response、platform_interaction。
 - 如果孩子低落、自責或挫折，先承接情緒，不急著貼標籤。
-- detected_strengths 最多 2 個。
+- detected_strengths 最多 1 個，沒有明確證據就回傳 []。
 - 如果要提到過去案例，只能使用「可引用的過去匿名案例」中明確存在的內容。
 - 如果案例清單沒有相關內容，不可以編造過去事件，只能用一般鼓勵語氣。
 - 如果孩子提到危險、自傷、想傷害自己、被傷害、被威脅或嚴重情緒困擾，要先溫柔接住，並明確建議孩子立刻找可信任的大人、老師、輔導老師或家人協助；不要只用一般鼓勵帶過。
@@ -588,31 +548,36 @@ def _analyze_with_gemini(
         client,
         contents=prompt,
         config=types.GenerateContentConfig(
-            responseMimeType="application/json",
-            temperature=0.35,
+            response_mime_type="application/json",
+            max_output_tokens=CHAT_GEMINI_MAX_OUTPUT_TOKENS,
+            temperature=0.2,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
+        max_retries=1,
     )
     raw_text = getattr(response, "text", "") or ""
     result = _normalize_result(_parse_json(raw_text), message)
     result["mode"] = "gemini"
     result["error"] = ""
     result["model"] = used_model
+    result["estimated_tokens_used"] = _estimate_text_tokens(prompt) + _estimate_text_tokens(raw_text)
     return result
 
 
-def _generate_gemini_content(client: Any, *, contents: str, config: Any):
+def _generate_gemini_content(client: Any, *, contents: str, config: Any, max_retries: int = 1):
     errors = []
     for model in get_gemini_model_candidates():
-        try:
-            return client.models.generate_content(
-                model=model,
-                contents=contents,
-                config=config,
-            ), model
-        except Exception as exc:
-            errors.append((model, exc))
-            if not _is_retryable_gemini_error(exc):
-                break
+        for attempt in range(max_retries + 1):
+            try:
+                return client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config,
+                ), model
+            except Exception as exc:
+                errors.append((model, exc))
+                if not _is_retryable_gemini_error(exc) or attempt >= max_retries:
+                    break
     if len(errors) == 1:
         raise errors[0][1]
     summary = "；".join(
@@ -645,6 +610,37 @@ def _parse_json(raw_text: str) -> dict[str, Any]:
         if not match:
             raise
         return json.loads(match.group(0))
+
+
+def _count_chinese_chars(text: str) -> int:
+    return len(re.findall(r"[\u4e00-\u9fff]", text))
+
+
+def _estimate_text_tokens(text: str) -> int:
+    compact = str(text or "")
+    if not compact:
+        return 0
+    chinese_chars = _count_chinese_chars(compact)
+    non_chinese_chars = max(0, len(compact) - chinese_chars)
+    return max(1, int(chinese_chars * 1.1 + non_chinese_chars / 4) + 1)
+
+
+def _safe_diary_encouragement(text: str, *, has_strength: bool) -> str:
+    fallback = "日記已儲存，謝謝你願意記錄今天。"
+    cleaned = text.strip() or fallback
+    if has_strength:
+        return cleaned
+    blocked_phrases = [
+        "沒有優勢",
+        "未看見優勢",
+        "判斷不出優勢",
+        "看不出優勢",
+        "沒有明確優勢",
+        "未判斷出",
+    ]
+    if any(phrase in cleaned for phrase in blocked_phrases):
+        return fallback
+    return cleaned
 
 
 def _mock_analyze(

@@ -29,6 +29,7 @@ def render() -> None:
         unsafe_allow_html=True,
     )
     st.caption(f"目前代幣：{child['tokens']}")
+    st.info("寫滿 10 個中文字以上，優勢小偵探才會出動，幫你找找今天藏在哪裡的優勢。")
 
     with st.form("diary_form", clear_on_submit=True):
         content = st.text_area(
@@ -42,8 +43,6 @@ def render() -> None:
         cleaned = content.strip()
         if not cleaned:
             st.warning("先寫下一點點今天的心情，再交給小幫手保存。")
-        elif len(cleaned) < 3:
-            st.warning("可以再多寫幾個字，讓小幫手更了解你今天的狀態。")
         else:
             try:
                 result = create_diary_entry(child, cleaned)
@@ -58,6 +57,8 @@ def render() -> None:
                     st.caption(message)
                 if result.get("mode") == "gemini":
                     st.caption("AI 小幫手已幫你整理這篇日記。")
+                elif result.get("mode") == "cached":
+                    st.caption("這篇日記已用先前的分析結果，不重複呼叫 AI。")
                 elif result.get("error"):
                     st.info("日記已儲存，AI 小幫手晚點再來幫你整理。")
                 st.markdown(f"**小幫手：** {result['reply_to_child']}")

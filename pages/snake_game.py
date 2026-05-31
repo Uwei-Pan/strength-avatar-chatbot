@@ -48,8 +48,9 @@ REFLECTION_QUESTIONS = [
 ]
 
 REFLECTION_PLACEHOLDER = (
-    "例如：我想慢慢移動，不要太急；或我剛剛雖然輸了，但有努力看方向。"
+    "請寫滿 10 個字以上，例如：我想慢慢移動，不要太急；或我剛剛雖然輸了，但有努力看方向。"
 )
+MAX_REVIVALS_PER_ROUND = 2
 
 GAME_LABELS = {
     "snake": "貪食蛇",
@@ -203,6 +204,8 @@ def _new_snake_state(
     started: bool = False,
     tokens_spent: int = 0,
     active_modifiers: dict[str, Any] | None = None,
+    revivals_used: int = 0,
+    used_reflection_questions: list[str] | None = None,
 ) -> dict[str, Any]:
     modifiers = active_modifiers or {}
     return {
@@ -215,7 +218,8 @@ def _new_snake_state(
         "fruits_eaten": [],
         "all_fruits_eaten": [],
         "score_bank": 0,
-        "revivals_used": 0,
+        "revivals_used": int(revivals_used),
+        "used_reflection_questions": list(used_reflection_questions or []),
         "completed": False,
         "final_summary": "",
         "game_over": False,
@@ -328,11 +332,14 @@ def _new_block_state(
     started: bool = False,
     tokens_spent: int = 0,
     active_modifiers: dict[str, Any] | None = None,
+    revivals_used: int = 0,
+    used_reflection_questions: list[str] | None = None,
 ) -> dict[str, Any]:
     modifiers = active_modifiers or {}
     state = new_block_game()
     state["started"] = started
-    state["revivals_used"] = 0
+    state["revivals_used"] = int(revivals_used)
+    state["used_reflection_questions"] = list(used_reflection_questions or [])
     state["completed"] = False
     state["saved"] = False
     state["tokens_spent"] = int(tokens_spent)
@@ -478,17 +485,28 @@ def _queue_reflection(
     game_id: str,
     summary: str = "",
     purpose: str = "replay",
+    revivals_used: int = 0,
+    used_reflection_questions: list[str] | None = None,
 ) -> None:
+    used_questions = list(used_reflection_questions or [])
+    question = _next_reflection_question(used_questions)
     st.session_state["pending_reflection_question"] = {
         "student_id": st.session_state.get("child_id"),
         "game_id": game_id,
         "game_type": game_type,
-        "question": random.choice(REFLECTION_QUESTIONS),
+        "question": question,
         "score_before_game_over": int(score),
         "game_over_reason": game_over_reason,
         "summary": summary,
         "purpose": purpose,
+        "revivals_used": int(revivals_used),
+        "used_reflection_questions": [*used_questions, question],
     }
+
+
+def _next_reflection_question(used_questions: list[str]) -> str:
+    unused = [question for question in REFLECTION_QUESTIONS if question not in set(used_questions)]
+    return random.choice(unused or REFLECTION_QUESTIONS)
 
 
 def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> None:
@@ -502,7 +520,8 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
         f"""
         <div class="game-over-card">
             <strong>{escape(game_label)}再挑戰小問題</strong><br>
-            本次分數：{int(pending.get("score_before_game_over", 0))}。先寫一句自己的想法，就可以開始新一局。<br>
+            本次分數：{int(pending.get("score_before_game_over", 0))}。寫滿 10 個字以上，就可以復活再挑戰。<br>
+            復活機會：{int(pending.get("revivals_used", 0))}/{MAX_REVIVALS_PER_ROUND}<br>
             <strong>{escape(str(pending["question"]))}</strong>
         </div>
         """,
@@ -522,7 +541,7 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
         submitted = st.form_submit_button("送出回答，再玩一次", use_container_width=True)
 
     if not submitted:
-        st.caption("這裡只是提示；例如：可以寫感覺、努力的地方，或下一次想用的策略。")
+        st.caption("請寫滿 10 個字以上；可以寫感覺、努力的地方，或下一次想用的策略。")
         return
 
     cleaned = answer.strip()
@@ -553,12 +572,16 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
             started=True,
             tokens_spent=0,
             active_modifiers=get_active_game_modifiers(child, "snake"),
+            revivals_used=int(pending.get("revivals_used", 0)) + 1,
+            used_reflection_questions=list(pending.get("used_reflection_questions") or []),
         )
     else:
         st.session_state["block_puzzle_game"] = _new_block_state(
             started=True,
             tokens_spent=0,
             active_modifiers=get_active_game_modifiers(child, "block_puzzle"),
+            revivals_used=int(pending.get("revivals_used", 0)) + 1,
+            used_reflection_questions=list(pending.get("used_reflection_questions") or []),
         )
     st.session_state["pending_reflection_question"] = None
     st.success("回答已保存，新的挑戰開始囉。")
@@ -780,12 +803,15 @@ def _render_game_over_panel(state: dict[str, Any], game_type: str) -> None:
     summary = state.get("final_summary") or "這一局已經結束，可以選擇退出，或先回答一個小問題再挑戰。"
     modifier_label = _modifier_status_label(state.get("active_modifiers") or state.get("active_buff"))
     ability_line = _ability_event_summary(state.get("ability_events", []))
+    revivals_used = int(state.get("revivals_used") or 0)
+    can_revive = revivals_used < MAX_REVIVALS_PER_ROUND
     st.markdown(
         f"""
         <div class="game-over-card">
             <strong>{escape(game_label)}結束</strong><br>
             原因：{escape(reason_label)}<br>
             本次分數：{int(state.get("score", 0))}｜本次獲得代幣：+{int(state.get("tokens_earned", 0))}<br>
+            復活機會：{revivals_used}/{MAX_REVIVALS_PER_ROUND}<br>
             本局助力：{escape(modifier_label)}<br>
             {escape(ability_line)}<br>
             {escape(str(summary))}
@@ -805,8 +831,8 @@ def _render_game_over_panel(state: dict[str, Any], game_type: str) -> None:
             _exit_game(game_type)
             st.rerun()
     with col_replay:
-        if st.button(
-            "再玩一次",
+        if can_revive and st.button(
+            "復活再玩一次",
             icon=":material/restart_alt:",
             key=f"replay_{game_type}_{state.get('game_id', '')}",
             use_container_width=True,
@@ -818,8 +844,12 @@ def _render_game_over_panel(state: dict[str, Any], game_type: str) -> None:
                 game_id=str(state.get("game_id") or new_game_id()),
                 summary=str(summary),
                 purpose="replay",
+                revivals_used=revivals_used,
+                used_reflection_questions=list(state.get("used_reflection_questions") or []),
             )
             st.rerun()
+        elif not can_revive:
+            st.caption("這一輪已經復活 2 次囉，可以先退出休息一下。")
 
 
 def _render_game_status(child: dict[str, Any], current_game: str) -> None:

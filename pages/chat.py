@@ -10,6 +10,13 @@ from database.db_connection import DatabaseConnectionError
 from services.ai_service import analyze_child_message
 from services.chat_reward_service import evaluate_chat_token_events, token_event_total
 from services.chat_session_service import list_chat_sessions, save_chat_session
+from services.chat_usage_service import (
+    can_use_chat_ai,
+    chat_limit_reply,
+    estimate_text_tokens,
+    get_chat_ai_usage,
+    record_chat_ai_usage,
+)
 from services.child_service import get_child
 from services.strength_service import save_chat_log, save_child_strength
 from services.token_service import award_chat_tokens
@@ -22,6 +29,7 @@ DEFAULT_QUICK_PROMPTS = [
     "可以鼓勵我一下嗎？",
     "請給我一個小任務",
 ]
+CHAT_REQUEST_TOKEN_RESERVE = 900
 
 
 def render() -> None:
@@ -48,6 +56,7 @@ def render() -> None:
         unsafe_allow_html=True,
     )
     st.caption(f"目前代幣：{child['tokens']}")
+    _render_chat_ai_usage(child["child_id"])
 
     notice = st.session_state.pop("chat_notice", None)
     if notice:
@@ -180,6 +189,13 @@ def _submit_message(
         for message in session["messages"]
         if message.get("role") == "user"
     ]
+    estimated_next_tokens = max(CHAT_REQUEST_TOKEN_RESERVE, estimate_text_tokens(cleaned))
+    try:
+        allowed, _usage = can_use_chat_ai(child["child_id"], estimated_next_tokens)
+    except DatabaseConnectionError as exc:
+        st.error(str(exc))
+        return False
+
     session["messages"].append({"role": "user", "content": cleaned, "created_at": _now_iso()})
     user_message_index = len(session["messages"]) - 1
 
@@ -187,8 +203,44 @@ def _submit_message(
         _render_bubble("user", "你", cleaned)
         _render_thinking_bubble()
 
+    if not allowed:
+        loading_slot.empty()
+        assistant_reply = chat_limit_reply(child.get("name", "孩子"))
+        session["messages"].append(
+            {
+                "role": "assistant",
+                "content": assistant_reply,
+                "created_at": _now_iso(),
+                "emotion": "平穩",
+                "detected_strengths": [],
+                "tokens_earned": 0,
+                "follow_up_question": "",
+                "mode": "limit",
+                "error": "",
+                "source": "suggestion" if is_suggestion else "typed",
+            }
+        )
+        st.session_state["active_chat_session"] = session
+        st.session_state["chat_notice"] = {
+            "type": "warning",
+            "text": "小幫手今天太累了，24 小時後會恢復精神。",
+        }
+        return True
+
     result = analyze_child_message(child, cleaned)
+    if result.get("mode") == "gemini":
+        tokens_used = int(result.get("estimated_tokens_used") or 0)
+        if tokens_used <= 0:
+            tokens_used = estimated_next_tokens + estimate_text_tokens(result.get("reply_to_child", ""))
+        try:
+            record_chat_ai_usage(child["child_id"], tokens_used)
+        except DatabaseConnectionError:
+            st.warning("小幫手疲勞度暫時無法更新，但這次回覆已完成。")
+
     if is_suggestion:
+        token_events = []
+        tokens_earned = 0
+    elif _needs_detail_first(cleaned, result.get("emotion", "")):
         token_events = []
         tokens_earned = 0
     else:
@@ -242,6 +294,52 @@ def _submit_message(
             "text": "Gemini 暫時連不上，現在使用 mock 練習回覆。",
         }
     return True
+
+
+def _render_chat_ai_usage(child_id: str) -> None:
+    try:
+        usage = get_chat_ai_usage(child_id)
+    except DatabaseConnectionError:
+        return
+    used = int(usage.get("used_tokens") or 0)
+    limit = int(usage.get("limit_tokens") or 1)
+    fatigue = min(1.0, max(0.0, used / max(1, limit)))
+    st.progress(fatigue, text=f"小幫手疲勞度：{_fatigue_label(fatigue)}")
+
+
+def _fatigue_label(value: float) -> str:
+    if value >= 1:
+        return "需要休息"
+    if value >= 0.75:
+        return "快累了"
+    if value >= 0.45:
+        return "有點累"
+    return "精神飽滿"
+
+
+def _needs_detail_first(message: str, emotion: str) -> bool:
+    negative_emotions = {"生氣", "緊張", "挫折", "疲累", "低落", "委屈", "難過", "焦慮", "害怕", "失望"}
+    negative_words = [
+        "被罵",
+        "罵了",
+        "誤會",
+        "被誤會",
+        "記點",
+        "很煩",
+        "生氣",
+        "難過",
+        "委屈",
+        "不開心",
+        "焦慮",
+        "害怕",
+        "失望",
+        "挫折",
+        "哭",
+        "討厭",
+        "壓力",
+    ]
+    text = str(message or "")
+    return str(emotion or "") in negative_emotions or any(word in text for word in negative_words)
 
 
 def _render_close_controls(child: dict[str, Any], session: dict[str, Any]) -> None:

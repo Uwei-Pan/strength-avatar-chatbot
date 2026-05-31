@@ -68,6 +68,13 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     INDEX idx_chat_sessions_child_closed (child_id, closed_at, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS chat_ai_usage_limits (
+    child_id VARCHAR(64) PRIMARY KEY,
+    used_tokens INT NOT NULL DEFAULT 0,
+    reset_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS token_transactions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     child_id VARCHAR(64) NOT NULL,
@@ -163,4 +170,18 @@ CREATE TABLE IF NOT EXISTS diary_entries (
         FOREIGN KEY (child_id) REFERENCES children(child_id)
         ON DELETE CASCADE,
     INDEX idx_diary_entries_child_created (child_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS diary_analysis_cache (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    child_id VARCHAR(64) NOT NULL,
+    content_hash CHAR(64) NOT NULL,
+    content_preview TEXT NOT NULL,
+    analysis_json JSON NULL,
+    ai_reply TEXT NULL,
+    detected_strengths_json JSON NULL,
+    model VARCHAR(100) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_diary_analysis_cache_child_hash (child_id, content_hash),
+    INDEX idx_diary_analysis_cache_child_created (child_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

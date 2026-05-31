@@ -89,6 +89,13 @@ def normalize_strength_name(strength_name: str) -> str:
         "善良": "仁慈",
         "感恩": "感激",
         "合作": "團體合作",
+        "團隊合作": "團體合作",
+        "領導": "領導力",
+        "謙虛": "謙遜",
+        "愛": "愛與被愛",
+        "愛學習": "喜愛學習",
+        "觀察力": "洞察力",
+        "欣賞美與卓越": "欣賞美好",
     }
     return aliases.get(strength_name.strip(), strength_name.strip())
 

@@ -11,6 +11,7 @@ data/chat_sessions/
 *.sqlite
 *.sqlite3
 *.log
+.codex_tmp/
 
 # Local agent skills installed for this workspace.
 .agents/skills/*

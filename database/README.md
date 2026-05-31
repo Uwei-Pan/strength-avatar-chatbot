@@ -10,19 +10,19 @@
 python database/init_db.py
 ```
 
-預設 database 名稱是 `strength_avatar`。
+預設 database 名稱是 `ai_for_children`。
 
 ## 2. 設定 .env
 
-複製 `.env.example` 成 `.env`，並依你的本機 MySQL 設定修改：
+複製 `.env.example` 成 `.env`，並依你的本機 MySQL 設定追加資料庫設定；若不設定，程式會使用本機預設值：
 
 ```env
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=
-DB_NAME=strength_avatar
-GEMINI_API_KEY=your_gemini_api_key_here
+DB_NAME=ai_for_children
+GEMINI_API_KEY=your_api_key_here
 ```
 
 不要把真實 `.env` commit 到 GitHub。
@@ -35,7 +35,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 - Port: `3306`
 - User: 你的 `DB_USER`
 - Password: 你的 `DB_PASSWORD`
-- Database: `strength_avatar`
+- Database: `ai_for_children`
 
 程式和 TablePlus 都連到同一個 MySQL database。
 
@@ -58,6 +58,7 @@ python database/init_db.py
 - `strengths`
 - `child_strengths`
 - `chat_logs`
+- `chat_ai_usage_limits`
 - `token_transactions`
 - `game_sessions`
 - `game_reflections`
@@ -65,3 +66,4 @@ python database/init_db.py
 - `child_outfits`
 - `todo_items`
 - `diary_entries`
+- `diary_analysis_cache`
