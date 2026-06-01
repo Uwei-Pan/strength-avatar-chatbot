@@ -26,7 +26,7 @@ def render() -> None:
         """
         <div class="kid-hero">
             <p class="kid-hero-title">服裝商店</p>
-            <p class="kid-hero-copy">用努力收集到的代幣，替角色解鎖新的冒險造型。</p>
+            <p class="kid-hero-copy">每件服裝都有遊戲助力；加成越強，價格也會越高。</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -66,6 +66,7 @@ def _render_shop_item(child_id: str, outfit: dict) -> None:
                         <strong>{escape(str(profile["display_name"]))}</strong>
                         <p>{escape(str(profile["short_description"]))}</p>
                         <p class="gear-buff-line">{escape(str(buff.get("buff_label") or "外觀裝備"))}</p>
+                        <p>{escape(str(buff.get("buff_description") or "這件服裝會在遊戲中提供助力。"))}</p>
                         <span class="kid-tag shop-status-available">可購買</span>
                         <span class="kid-tag {escape(str(profile["accent"]))}">優勢：{escape(str(strength))}</span>
                     </div>
@@ -101,6 +102,7 @@ def _render_owned_item(child_id: str, outfit: dict, *, equipped: bool = False) -
                         <strong>{escape(str(profile["display_name"]))}</strong>
                         <p>{escape(str(profile["short_description"]))}</p>
                         <p class="gear-buff-line">{escape(str(buff.get("buff_label") or "外觀裝備"))}</p>
+                        <p>{escape(str(buff.get("buff_description") or "這件服裝會在遊戲中提供助力。"))}</p>
                         <span class="kid-tag {escape(str(profile["accent"]))}">優勢：{escape(str(strength))}</span>
                         <span class="kid-tag shop-status-owned">已擁有</span>
                         {('<span class="kid-tag chip-a">目前裝備中</span>' if equipped else '')}

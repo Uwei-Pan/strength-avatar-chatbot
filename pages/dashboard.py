@@ -28,6 +28,7 @@ SOURCE_LABELS = {
 
 
 def render() -> None:
+    st.markdown('<div class="dashboard-page-scope"></div>', unsafe_allow_html=True)
     child_id = st.session_state.get("child_id")
     try:
         child = get_child(child_id)
@@ -51,10 +52,25 @@ def render() -> None:
     character = get_character_profile(child.get("selected_character"))
     outfit = get_selected_outfit_profile(child)
     ability = character.get("ability") or {}
-    col1, col2, col3 = st.columns(3)
-    col1.metric("代幣", child["tokens"])
-    col2.metric("角色", character["display_name"])
-    col3.metric("服裝", outfit["display_name"])
+    st.markdown(
+        f"""
+        <div class="dashboard-stat-grid">
+            <div class="dashboard-stat-card">
+                <span>代幣</span>
+                <strong>{escape(str(child["tokens"]))}</strong>
+            </div>
+            <div class="dashboard-stat-card">
+                <span>角色</span>
+                <strong>{escape(str(character["display_name"]))}</strong>
+            </div>
+            <div class="dashboard-stat-card">
+                <span>服裝</span>
+                <strong>{escape(str(outfit["display_name"]))}</strong>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         f"""

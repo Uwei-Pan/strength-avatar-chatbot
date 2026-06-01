@@ -24,7 +24,7 @@ from services.token_service import award_chat_tokens
 
 DEFAULT_QUICK_PROMPTS = [
     "我今天有點不開心",
-    "我今天做了一件很棒的事",
+    "今天做了一件很棒的事",
     "我想知道我的亮點",
     "可以鼓勵我一下嗎？",
     "請給我一個小任務",
@@ -33,6 +33,7 @@ CHAT_REQUEST_TOKEN_RESERVE = 900
 
 
 def render() -> None:
+    st.markdown('<div class="chat-page-scope"></div>', unsafe_allow_html=True)
     child_id = st.session_state.get("child_id")
     try:
         child = get_child(child_id)
@@ -113,7 +114,7 @@ def _unique_prompts(prompts: Any) -> list[str]:
 
 def _example_label(prompt: str) -> str:
     cleaned = str(prompt).strip()
-    return cleaned if cleaned.startswith("例如：") else f"例如：{cleaned}"
+    return _strip_example_prefix(cleaned)
 
 
 def _strip_example_prefix(prompt: str) -> str:
@@ -126,7 +127,7 @@ def _render_current_chat(session: dict[str, Any]):
         st.markdown(
             """
             <div class="kid-card">
-                新的聊天已準備好。你可以先用一句話告訴小幫手今天發生了什麼，或點下面「例如：」開頭的小提示開始。
+                新的聊天已準備好。你可以先用一句話告訴小幫手今天發生了什麼，或點下面的小提示開始。
             </div>
             """,
             unsafe_allow_html=True,
@@ -147,7 +148,7 @@ def _render_input(child: dict[str, Any], session: dict[str, Any], loading_slot) 
         message = st.text_area(
             "輸入本次想聊的內容",
             height=96,
-            placeholder="例如：我今天有點生氣，因為我覺得被誤會。",
+            placeholder="我今天有點生氣，因為我覺得被誤會。",
         )
         submitted = st.form_submit_button("送出給小幫手", use_container_width=True)
 

@@ -30,7 +30,7 @@ def render() -> None:
         """
         <div class="kid-hero">
             <p class="kid-hero-title">角色與服裝</p>
-            <p class="kid-hero-copy">幫你的優勢角色換上喜歡的樣子，讓每一次練習都更有自己的風格。</p>
+            <p class="kid-hero-copy">每個角色和每件服裝都會在遊戲中提供助力，選一套適合今天挑戰的搭配。</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -47,6 +47,7 @@ def render() -> None:
                 <h3>{escape(current_character["display_name"])}｜{escape(current_character["title"])}</h3>
                 <p>{escape(current_character["description"])}</p>
                 <p class="gear-buff-line">角色助力：{escape(str(current_ability.get("ability_name") or "穩穩陪伴"))}｜{escape(str(current_ability.get("ability_description") or "角色會陪你一起完成挑戰。"))}</p>
+                <p>{escape(_character_effect_summary(current_ability))}</p>
                 <div class="equipment-preview-card">
                     {outfit_visual_html(current_outfit, "is-small")}
                     <div>
@@ -79,6 +80,7 @@ def render() -> None:
                         <p>{escape(profile["description"])}</p>
                         <p class="gear-buff-line">{escape(str(ability.get("ability_name") or "穩穩陪伴"))}</p>
                         <p>{escape(str(ability.get("ability_description") or "角色會陪你一起完成挑戰。"))}</p>
+                        <p>{escape(_character_effect_summary(ability))}</p>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -133,6 +135,17 @@ def _source_label(source: str) -> str:
         "shop_purchase": "在商店購買",
     }
     return labels.get(source, "已解鎖")
+
+
+def _character_effect_summary(ability: dict) -> str:
+    effects = ability.get("game_effects") or {}
+    labels = []
+    for game_key, game_label in [("snake", "貪食蛇"), ("block_puzzle", "方塊消除")]:
+        effect = effects.get(game_key) or {}
+        label = effect.get("label")
+        if label:
+            labels.append(f"{game_label}：{label}")
+    return "｜".join(labels) if labels else "兩個遊戲都會有穩定陪伴助力。"
 
 
 def _render_outfit_card(outfit: dict, *, owned: bool, equipped: bool = False) -> None:

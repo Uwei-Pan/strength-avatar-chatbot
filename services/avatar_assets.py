@@ -490,6 +490,27 @@ OUTFIT_BUFFS: dict[str, dict[str, Any]] = {
         "buff_label": "貪食蛇分數 +10%",
         "buff_description": "堅持靴讓每次前進更有力量，貪食蛇得分提高。",
     },
+    "honesty_badge": {
+        "buff_type": "score_multiplier",
+        "target_game": "all",
+        "buff_value": 1.07,
+        "buff_label": "兩個遊戲分數 +7%",
+        "buff_description": "真誠徽章讓每一次嘗試更有力量，兩個遊戲得分都提高。",
+    },
+    "zest_scarf": {
+        "buff_type": "score_multiplier",
+        "target_game": "snake",
+        "buff_value": 1.14,
+        "buff_label": "貪食蛇分數 +14%",
+        "buff_description": "熱誠領巾把活力變成速度感，貪食蛇得分明顯提高。",
+    },
+    "love_pin": {
+        "buff_type": "score_multiplier",
+        "target_game": "all",
+        "buff_value": 1.07,
+        "buff_label": "兩個遊戲分數 +7%",
+        "buff_description": "關愛別針把溫暖連結變成小小能量，兩個遊戲得分都提高。",
+    },
     "self_regulation_shield": {
         "buff_type": "speed_multiplier",
         "target_game": "snake",
@@ -511,12 +532,54 @@ OUTFIT_BUFFS: dict[str, dict[str, Any]] = {
         "buff_label": "方塊消除分數 +8%",
         "buff_description": "合作圍巾讓每個方塊各就各位，方塊消除得分提高。",
     },
+    "social_bridge_badge": {
+        "buff_type": "bonus_start_score",
+        "target_game": "block_puzzle",
+        "buff_value": 18,
+        "buff_label": "方塊消除開局 +18 分",
+        "buff_description": "社交橋徽章幫你先搭好一座小橋，方塊消除開局加分。",
+    },
+    "fairness_scale": {
+        "buff_type": "score_multiplier",
+        "target_game": "block_puzzle",
+        "buff_value": 1.09,
+        "buff_label": "方塊消除分數 +9%",
+        "buff_description": "公平天秤幫你看見棋盤平衡，方塊消除得分提高。",
+    },
+    "leadership_flag": {
+        "buff_type": "score_multiplier",
+        "target_game": "all",
+        "buff_value": 1.08,
+        "buff_label": "兩個遊戲分數 +8%",
+        "buff_description": "領導小旗帶著隊伍往前，兩個遊戲得分都提高。",
+    },
+    "forgiveness_leaf": {
+        "buff_type": "speed_multiplier",
+        "target_game": "snake",
+        "buff_value": 0.89,
+        "buff_label": "貪食蛇速度放慢 11%",
+        "buff_description": "寬恕葉片讓節奏柔和一點，貪食蛇移動速度稍微放慢。",
+    },
+    "humility_patch": {
+        "buff_type": "bonus_start_score",
+        "target_game": "block_puzzle",
+        "buff_value": 14,
+        "buff_label": "方塊消除開局 +14 分",
+        "buff_description": "謙遜布章提醒你穩穩開始，方塊消除開局加分。",
+    },
     "kindness_cloak": {
         "buff_type": "score_multiplier",
         "target_game": "all",
         "buff_value": 1.06,
         "buff_label": "兩個遊戲分數 +6%",
         "buff_description": "仁慈披風給你溫暖能量，兩個遊戲得分都小小提高。",
+    },
+    "beauty_camera": {
+        "buff_type": "score_multiplier",
+        "target_game": "snake",
+        "buff_value": 1.09,
+        "buff_label": "貪食蛇分數 +9%",
+        "buff_description": "美好相機幫你捕捉閃光時刻，貪食蛇得分提高。",
     },
     "gratitude_badge": {
         "buff_type": "score_multiplier",
@@ -532,6 +595,20 @@ OUTFIT_BUFFS: dict[str, dict[str, Any]] = {
         "buff_label": "兩個遊戲分數 +6%",
         "buff_description": "希望星星提醒你可以再試，兩個遊戲得分都小小提高。",
     },
+    "humor_button": {
+        "buff_type": "bonus_start_score",
+        "target_game": "snake",
+        "buff_value": 16,
+        "buff_label": "貪食蛇開局 +16 分",
+        "buff_description": "幽默鈕扣讓開場多一點輕鬆能量，貪食蛇開局加分。",
+    },
+    "spirit_star": {
+        "buff_type": "score_multiplier",
+        "target_game": "all",
+        "buff_value": 1.09,
+        "buff_label": "兩個遊戲分數 +9%",
+        "buff_description": "靈性星星照亮努力的方向，兩個遊戲得分都明顯提高。",
+    },
 }
 
 FALLBACK_BUFF = {
@@ -541,6 +618,34 @@ FALLBACK_BUFF = {
     "buff_label": "本遊戲沒有額外助力",
     "buff_description": "這件裝備目前只作為外觀展示，不會影響本局分數。",
 }
+
+
+def get_outfit_price(outfit_id: str | None) -> int:
+    outfit_key = str(outfit_id or "")
+    if outfit_key == "starter_scarf":
+        return 0
+    buff = OUTFIT_BUFFS.get(outfit_key)
+    if not buff:
+        return 20
+    return _round_price_to_five(12 + _outfit_buff_power(buff))
+
+
+def _round_price_to_five(price: int) -> int:
+    return max(5, ((price + 4) // 5) * 5)
+
+
+def _outfit_buff_power(buff: dict[str, Any]) -> int:
+    buff_type = str(buff.get("buff_type") or "none")
+    target = str(buff.get("target_game") or "none")
+    value = float(buff.get("buff_value") or 0)
+    target_bonus = 12 if target == "all" else 0
+    if buff_type == "score_multiplier":
+        return target_bonus + round(max(0.0, value - 1.0) * 500)
+    if buff_type == "speed_multiplier":
+        return target_bonus + round(max(0.0, 1.0 - value) * 420)
+    if buff_type == "bonus_start_score":
+        return target_bonus + round(value * 1.6)
+    return 8
 
 
 def get_character_profile(character_key: str | None) -> dict[str, Any]:
@@ -603,7 +708,7 @@ def get_outfit_profile(outfit: dict[str, Any] | str | None) -> dict[str, Any]:
         "strength_suggestion": source.get("strength_suggestion") or "",
         "accent": catalog.get("accent", "chip-c"),
         "buff": OUTFIT_BUFFS.get(outfit_id, FALLBACK_BUFF),
-        "cost": int(source.get("cost") or 0),
+        "cost": get_outfit_price(outfit_id) if outfit_id in OUTFIT_CATALOG else int(source.get("cost") or 0),
         "is_owned": bool(source.get("is_owned", False)),
         "unlocked_source": source.get("unlocked_source", ""),
     }

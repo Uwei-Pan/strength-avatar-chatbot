@@ -151,8 +151,13 @@ def _render_distribution(dashboard: dict[str, Any]) -> None:
         st.info("尚無足夠資料可顯示分布。使用平台後，這裡會逐步長出你的優勢輪廓。")
         return
 
+    chart_items = [
+        item
+        for item in comparison
+        if int(item.get("past_count") or 0) > 0 or int(item.get("current_count") or 0) > 0
+    ]
     rows = []
-    for item in comparison[:14]:
+    for item in chart_items:
         rows.append(
             {
                 "優勢": item["strength_name"],
@@ -170,7 +175,7 @@ def _render_distribution(dashboard: dict[str, Any]) -> None:
 
     chart = (
         alt.Chart(pd.DataFrame(rows))
-        .mark_bar(size=16)
+        .mark_bar(size=14, cornerRadiusEnd=3, stroke=CHART_BACKGROUND, strokeWidth=1.5)
         .encode(
             x=alt.X(
                 "次數:Q",
@@ -180,8 +185,14 @@ def _render_distribution(dashboard: dict[str, Any]) -> None:
             y=alt.Y(
                 "優勢:N",
                 title="",
-                sort=[item["strength_name"] for item in comparison[:14]],
-                axis=alt.Axis(labelPadding=8),
+                sort=[item["strength_name"] for item in chart_items],
+                scale=alt.Scale(paddingInner=0.42, paddingOuter=0.18),
+                axis=alt.Axis(labelPadding=8, labelOverlap=False, labelLimit=160),
+            ),
+            yOffset=alt.YOffset(
+                "階段:N",
+                sort=["過去", "現在"],
+                scale=alt.Scale(paddingInner=0.18, paddingOuter=0.04),
             ),
             color=alt.Color(
                 "階段:N",
@@ -192,7 +203,7 @@ def _render_distribution(dashboard: dict[str, Any]) -> None:
             tooltip=["階段", "優勢", "次數"],
         )
         .properties(
-            height=max(280, min(580, len(comparison[:14]) * 36)),
+            height=max(320, min(1300, len(chart_items) * 68)),
             background=CHART_BACKGROUND,
             padding={"left": 8, "right": 28, "top": 18, "bottom": 30},
         )
@@ -208,9 +219,7 @@ def _render_distribution(dashboard: dict[str, Any]) -> None:
         )
         .configure_legend(labelColor=CHART_TEXT, titleColor=CHART_TEXT, orient="top")
     )
-    st.markdown('<div class="growth-chart-card">', unsafe_allow_html=True)
-    st.altair_chart(chart, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.altair_chart(chart, width="stretch")
 
     if not dashboard.get("has_initial_data"):
         st.caption("目前沒有明確的初始資料，先用已知紀錄陪你看見成長。")
@@ -298,9 +307,7 @@ def _render_trend(dashboard: dict[str, Any]) -> None:
             titleFontSize=15,
         )
     )
-    st.markdown('<div class="growth-chart-card">', unsafe_allow_html=True)
-    st.altair_chart(chart, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.altair_chart(chart, width="stretch")
 
     if dashboard.get("uses_demo_growth_data"):
         st.caption("目前使用開發展示資料預覽走勢；有真實紀錄後會優先顯示孩子自己的成長資料。")

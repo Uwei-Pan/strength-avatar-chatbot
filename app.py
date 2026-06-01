@@ -25,6 +25,17 @@ PAGE_LABELS = {
     "shop": "服裝商店",
 }
 
+PAGE_ICONS = {
+    "dashboard": ":material/home:",
+    "growth_dashboard": ":material/monitoring:",
+    "chat": ":material/chat:",
+    "snake_game": ":material/sports_esports:",
+    "character": ":material/checkroom:",
+    "diary": ":material/edit_note:",
+    "todo": ":material/checklist:",
+    "shop": ":material/storefront:",
+}
+
 
 def main() -> None:
     st.set_page_config(page_title="ai-for-children", page_icon="★", layout="wide")
@@ -40,19 +51,19 @@ def main() -> None:
     with st.sidebar:
         st.title("功能選單")
         current_page = st.session_state.get("page", "dashboard")
-        page_keys = list(PAGE_LABELS.keys())
-        selected_page = st.radio(
-            "頁面",
-            options=page_keys,
-            format_func=lambda page_key: PAGE_LABELS[page_key],
-            index=page_keys.index(current_page) if current_page in page_keys else 0,
-            label_visibility="collapsed",
-        )
-        if selected_page != current_page:
-            st.session_state["page"] = selected_page
-            st.rerun()
+        for page_key, page_label in PAGE_LABELS.items():
+            is_current_page = page_key == current_page
+            if st.button(
+                page_label,
+                key=f"nav_{page_key}",
+                icon=PAGE_ICONS.get(page_key),
+                use_container_width=True,
+                disabled=is_current_page,
+            ):
+                st.session_state["page"] = page_key
+                st.rerun()
         st.divider()
-        if st.button("登出", use_container_width=True):
+        if st.button("登出", icon=":material/logout:", use_container_width=True):
             for key in [
                 "child_id",
                 "page",
@@ -109,36 +120,68 @@ def _inject_style() -> None:
         }
 
         [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #fff8dc 0%, #e1f4ff 58%, #f3ecff 100%);
-            border-right: 1px solid rgba(72, 168, 245, 0.18);
+            background: linear-gradient(180deg, #fff8dc 0%, #fff2c8 58%, #fff7e8 100%);
+            border-right: 1px solid rgba(220, 123, 40, 0.12);
         }
 
         [data-testid="stSidebar"] h1,
         [data-testid="stSidebar"] h2,
         [data-testid="stSidebar"] h3 {
-            color: var(--kid-ink);
+            color: #202124;
         }
 
         [data-testid="stSidebar"] p,
         [data-testid="stSidebar"] label,
         [data-testid="stSidebar"] span {
-            color: #25306f !important;
-            font-weight: 800;
+            color: #202124 !important;
+            font-weight: 700;
         }
 
-        [data-testid="stSidebar"] [role="radiogroup"] label {
-            border-radius: 16px;
-            padding: 0.35rem 0.45rem;
+        [data-testid="stSidebar"] .stButton button {
+            min-height: 3rem !important;
+            justify-content: flex-start;
+            border-radius: 999px !important;
+            border: 0 !important;
+            background: transparent !important;
+            color: #202124 !important;
+            box-shadow: none !important;
+            filter: none !important;
+            font-size: 1rem !important;
+            font-weight: 600 !important;
+            margin-bottom: 0.14rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            text-shadow: none !important;
+            transform: none !important;
         }
 
-        [data-testid="stSidebar"] [role="radiogroup"] label:hover {
-            background: rgba(255, 255, 255, 0.52);
+        [data-testid="stSidebar"] .stButton button * {
+            color: #202124 !important;
+            font-weight: 600 !important;
+            text-shadow: none !important;
         }
 
-        [data-testid="stSidebar"] [role="radio"][aria-checked="true"] span,
-        [data-testid="stSidebar"] [role="radio"][aria-checked="true"] p {
-            color: #0c63b8 !important;
-            font-weight: 900;
+        [data-testid="stSidebar"] .stButton button:hover {
+            background: rgba(255, 225, 106, 0.28) !important;
+            color: #202124 !important;
+            box-shadow: none !important;
+            filter: none !important;
+            transform: none !important;
+        }
+
+        [data-testid="stSidebar"] .stButton button:disabled {
+            background: #ffe89a !important;
+            color: #5c3b00 !important;
+            opacity: 1 !important;
+            cursor: default;
+            box-shadow: none !important;
+            filter: none !important;
+            transform: none !important;
+        }
+
+        [data-testid="stSidebar"] .stButton button:disabled * {
+            color: #5c3b00 !important;
+            opacity: 1 !important;
         }
 
         [data-testid="stRadio"] label,
@@ -254,6 +297,46 @@ def _inject_style() -> None:
 
         [data-testid="stMetricValue"] {
             color: var(--kid-ink);
+        }
+
+        .stApp:has(.dashboard-page-scope) {
+            font-family: "M PLUS Rounded 1c", "Kosugi Maru", "jf-openhuninn-2.1", "Huninn",
+                "Arial Rounded MT Bold", "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+
+        .dashboard-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.9rem;
+            max-width: 980px;
+            margin: 0.55rem 0 1rem;
+        }
+
+        .dashboard-stat-card {
+            min-height: 96px;
+            padding: 0.78rem 0.9rem;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid var(--kid-border);
+            box-shadow: 0 7px 18px rgba(95, 111, 143, 0.1);
+        }
+
+        .dashboard-stat-card span {
+            display: block;
+            color: var(--kid-muted);
+            font-size: 0.9rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .dashboard-stat-card strong {
+            display: block;
+            margin-top: 0.42rem;
+            color: var(--kid-ink);
+            font-size: clamp(1.75rem, 3.2vw, 2.35rem);
+            font-weight: 800;
+            line-height: 1.05;
+            letter-spacing: 0;
         }
 
         [data-testid="stExpander"],
@@ -809,24 +892,9 @@ def _inject_style() -> None:
             margin-left: 0.2rem;
         }
 
-        .growth-chart-card,
         .growth-story-card {
             border: 1px solid var(--kid-border);
             box-shadow: var(--kid-soft-shadow);
-        }
-
-        .growth-chart-card {
-            padding: 0.8rem 0.85rem;
-            margin: 0.45rem 0 1rem;
-            border-radius: 28px;
-            overflow-x: auto;
-            overflow-y: hidden;
-            -webkit-overflow-scrolling: touch;
-            background:
-                radial-gradient(circle at 12% 14%, rgba(255, 181, 84, 0.16), transparent 30%),
-                radial-gradient(circle at 86% 18%, rgba(255, 224, 138, 0.1), transparent 28%),
-                #11141d;
-            border-color: rgba(255, 190, 118, 0.22);
         }
 
         .growth-story-card {
@@ -1583,7 +1651,6 @@ def _inject_style() -> None:
                 max-width: 100vw;
             }
 
-            [data-testid="stSidebar"] [role="radiogroup"] label,
             .stButton button,
             [data-testid="stFormSubmitButton"] button {
                 min-height: 48px;
@@ -1629,6 +1696,21 @@ def _inject_style() -> None:
 
             .kid-hero-copy {
                 font-size: 0.98rem;
+            }
+
+            .dashboard-stat-grid {
+                grid-template-columns: 1fr;
+                max-width: 100%;
+                gap: 0.6rem;
+            }
+
+            .dashboard-stat-card {
+                min-height: 82px;
+                padding: 0.68rem 0.78rem;
+            }
+
+            .dashboard-stat-card strong {
+                font-size: 1.55rem;
             }
 
             .game-compact-hero,
@@ -1702,6 +1784,12 @@ def _inject_style() -> None:
                 padding: 0.58rem 0.78rem;
             }
 
+            .stApp:has(.chat-page-scope) [data-testid="column"] {
+                width: 100% !important;
+                flex: 1 1 100% !important;
+                min-width: 100% !important;
+            }
+
             .chat-message-row {
                 margin: 0.3rem 0;
             }
@@ -1732,13 +1820,8 @@ def _inject_style() -> None:
             [data-testid="stMetric"],
             .game-over-card,
             .game-status-strip,
-            .growth-story-card,
-            .growth-chart-card {
+            .growth-story-card {
                 border-radius: 16px;
-            }
-
-            .growth-chart-card {
-                padding: 0.55rem;
             }
 
             .stApp:has(.game-page-scope) [data-testid="stVerticalBlock"] {

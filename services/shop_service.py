@@ -1,11 +1,12 @@
 from typing import Any
 
 from database.db_connection import fetch_all, fetch_one, get_connection
+from services.avatar_assets import get_outfit_price
 from services.token_service import InsufficientTokensError
 
 
 def list_shop_outfits(child_id: str) -> list[dict[str, Any]]:
-    return fetch_all(
+    rows = fetch_all(
         """
         SELECT
             o.outfit_id,
@@ -27,6 +28,9 @@ def list_shop_outfits(child_id: str) -> list[dict[str, Any]]:
         """,
         (child_id,),
     )
+    for row in rows:
+        row["cost"] = get_outfit_price(str(row.get("outfit_id") or ""))
+    return rows
 
 
 def purchase_outfit(child_id: str, outfit_id: str) -> int:
@@ -60,7 +64,7 @@ def purchase_outfit(child_id: str, outfit_id: str) -> int:
                 if not child:
                     raise ValueError("找不到孩子資料。")
 
-                cost = int(outfit["cost"] or 0)
+                cost = get_outfit_price(str(outfit["outfit_id"]))
                 new_balance = int(child["tokens"]) - cost
                 if new_balance < 0:
                     raise InsufficientTokensError("代幣還不夠，先累積幾個努力時刻再回來看看。")
