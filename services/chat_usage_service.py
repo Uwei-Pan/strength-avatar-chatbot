@@ -7,7 +7,7 @@ from typing import Any
 from database.db_connection import execute, fetch_one, get_connection
 
 # 設定小幫手每日可用量上限；可用 CHAT_AI_DAILY_TOKEN_LIMIT 覆蓋。
-DEFAULT_CHAT_AI_DAILY_TOKEN_LIMIT = 12000
+DEFAULT_CHAT_AI_DAILY_TOKEN_LIMIT = 50000
 
 
 def get_chat_ai_daily_token_limit() -> int:

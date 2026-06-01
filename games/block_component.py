@@ -496,13 +496,22 @@ export default function (component) {
 
 function createState(gameId, data) {
   const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.25)
+  const initialBoard = Array.isArray(data?.initial_board) ? cloneBoard(data.initial_board) : null
+  const initialPieces = Array.isArray(data?.initial_pieces) ? clonePieces(data.initial_pieces) : null
   return {
     gameId,
-    board: Array.from({ length: size }, () => Array.from({ length: size }, () => null)),
+    board: initialBoard ?? Array.from({ length: size }, () => Array.from({ length: size }, () => null)),
     // null = 已用完，等補充；非 null = 可用
-    pieces: [newPiece(), newPiece(), newPiece()],
-    selected: 0,
-    score: Math.max(0, Math.round(Number(data?.bonus_start_score ?? 0))),
+    pieces: initialPieces ?? [newPiece(), newPiece(), newPiece()],
+    selected: Math.max(0, Math.min(2, Math.round(Number(data?.selected_piece ?? 0)))),
+    score: Math.max(
+      0,
+      Math.round(
+        Number(data?.initial_score ?? 0) > 0
+          ? Number(data?.initial_score ?? 0)
+          : Number(data?.bonus_start_score ?? 0)
+      )
+    ),
     scoreMultiplier,
     rescueChances: Math.max(0, Math.min(1, Math.round(Number(data?.rescue_chances ?? 0)))),
     buffLabel: data?.modifier_label ?? data?.buff_label ?? "",
@@ -511,7 +520,7 @@ function createState(gameId, data) {
     serverTokens: Number(data?.tokens_earned ?? 0),
     localTokens: 0,
     sentThresholds: new Set((data?.awarded_thresholds ?? []).map(Number)),
-    placements: [],
+    placements: Array.isArray(data?.placements) ? data.placements.map((placement) => ({ ...placement })) : [],
     undoSnapshot: null,
     dragging: null,
     preview: null,
@@ -657,7 +666,12 @@ function place(state, row, col, setTriggerValue, root, pieceIndex = state.select
       score: state.score,
       high_score: state.highScore,
       game_over_reason: "no_valid_moves",
+      board: cloneBoard(state.board),
+      pieces: clonePieces(state.pieces),
+      selected_piece: state.selected,
       placements: state.placements,
+      tokens_earned: state.serverTokens + state.localTokens,
+      awarded_thresholds: Array.from(state.sentThresholds),
       ability_events: state.abilityEvents,
     })
   }
@@ -1011,6 +1025,11 @@ def neon_block_puzzle_game(
             "awarded_thresholds": state.get("awarded_thresholds", []),
             "score_multiplier": float(modifiers.get("score_multiplier") or 1.0),
             "bonus_start_score": int(modifiers.get("bonus_start_score") or 0),
+            "initial_score": int(state.get("score") or 0),
+            "initial_board": state.get("board"),
+            "initial_pieces": state.get("pieces"),
+            "selected_piece": int(state.get("selected_piece") or 0),
+            "placements": state.get("placements", []),
             "rescue_chances": int(modifiers.get("rescue_chances") or 0),
             "modifier_label": modifiers.get("summary_label") if modifiers.get("applies") else "",
             "buff_label": modifiers.get("buff_label") if modifiers.get("applies") else "",

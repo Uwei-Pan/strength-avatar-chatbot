@@ -8,6 +8,7 @@ import streamlit as st
 from database.db_connection import DatabaseConnectionError
 from games.block_component import neon_block_puzzle_game
 from games.block_puzzle import (
+    has_any_valid_move,
     new_game as new_block_game,
 )
 from games.slither_component import slither_snake_game
@@ -206,17 +207,22 @@ def _new_snake_state(
     active_modifiers: dict[str, Any] | None = None,
     revivals_used: int = 0,
     used_reflection_questions: list[str] | None = None,
+    initial_score: int = 0,
+    initial_length: int = 3,
+    tokens_earned: int = 0,
+    awarded_thresholds: list[int] | None = None,
+    all_fruits_eaten: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     modifiers = active_modifiers or {}
     return {
         "game_id": new_game_id(),
         "started": started,
-        "score": 0,
-        "length": 3,
-        "tokens_earned": 0,
-        "awarded_thresholds": [],
+        "score": max(0, int(initial_score)),
+        "length": max(3, int(initial_length)),
+        "tokens_earned": max(0, int(tokens_earned)),
+        "awarded_thresholds": [int(item) for item in (awarded_thresholds or []) if int(item) > 0],
         "fruits_eaten": [],
-        "all_fruits_eaten": [],
+        "all_fruits_eaten": list(all_fruits_eaten or []),
         "score_bank": 0,
         "revivals_used": int(revivals_used),
         "used_reflection_questions": list(used_reflection_questions or []),
@@ -334,9 +340,25 @@ def _new_block_state(
     active_modifiers: dict[str, Any] | None = None,
     revivals_used: int = 0,
     used_reflection_questions: list[str] | None = None,
+    previous_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     modifiers = active_modifiers or {}
     state = new_block_game()
+    if previous_state:
+        board = previous_state.get("board")
+        if isinstance(board, list) and board:
+            state["board"] = board
+        state["score"] = max(0, int(previous_state.get("score") or 0))
+        state["high_score"] = max(int(previous_state.get("high_score") or 0), int(state.get("score") or 0))
+        state["tokens_earned"] = max(0, int(previous_state.get("tokens_earned") or 0))
+        state["awarded_thresholds"] = [
+            int(item)
+            for item in previous_state.get("awarded_thresholds", [])
+            if int(item) > 0
+        ]
+        state["placements"] = list(previous_state.get("placements") or [])
+        state["pieces"] = _fresh_block_pieces_for_board(state.get("board", []))
+        state["selected_piece"] = 0
     state["started"] = started
     state["revivals_used"] = int(revivals_used)
     state["used_reflection_questions"] = list(used_reflection_questions or [])
@@ -410,6 +432,19 @@ def _handle_block_game_over(child_id: str, state: dict[str, Any], payload: Any) 
     state["score"] = int(payload.get("score") or 0)
     state["high_score"] = int(payload.get("high_score") or state.get("high_score", 0))
     state["placements"] = list(payload.get("placements") or [])
+    board = payload.get("board")
+    if isinstance(board, list) and board:
+        state["board"] = board
+    pieces = payload.get("pieces")
+    if isinstance(pieces, list):
+        state["pieces"] = pieces
+    state["selected_piece"] = int(payload.get("selected_piece") or state.get("selected_piece", 0) or 0)
+    state["tokens_earned"] = max(int(state.get("tokens_earned") or 0), int(payload.get("tokens_earned") or 0))
+    state["awarded_thresholds"] = [
+        int(threshold)
+        for threshold in payload.get("awarded_thresholds", state.get("awarded_thresholds", []))
+        if int(threshold) > 0
+    ]
     state["ability_events"] = list(payload.get("ability_events") or [])
     state["game_over"] = True
     state["game_over_reason"] = str(payload.get("game_over_reason") or "no_valid_moves")
@@ -520,7 +555,7 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
         f"""
         <div class="game-over-card">
             <strong>{escape(game_label)}再挑戰小問題</strong><br>
-            本次分數：{int(pending.get("score_before_game_over", 0))}。寫滿 10 個字以上，就可以復活再挑戰。<br>
+            本次分數：{int(pending.get("score_before_game_over", 0))}。寫滿 10 個字以上，通過小幫手確認就可以復活。<br>
             復活機會：{int(pending.get("revivals_used", 0))}/{MAX_REVIVALS_PER_ROUND}<br>
             <strong>{escape(str(pending["question"]))}</strong>
         </div>
@@ -542,6 +577,11 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
 
     if not submitted:
         st.caption("請寫滿 10 個字以上；可以寫感覺、努力的地方，或下一次想用的策略。")
+        return
+
+    revivals_used = int(pending.get("revivals_used", 0))
+    if revivals_used >= MAX_REVIVALS_PER_ROUND:
+        st.warning("這一輪已經復活 2 次囉，可以先退出休息一下。")
         return
 
     cleaned = answer.strip()
@@ -568,24 +608,48 @@ def _render_reflection_gate(child: dict[str, Any], pending: dict[str, Any]) -> N
         return
 
     if pending["game_type"] == "snake":
-        st.session_state["snake_game"] = _new_snake_state(
-            started=True,
-            tokens_spent=0,
-            active_modifiers=get_active_game_modifiers(child, "snake"),
-            revivals_used=int(pending.get("revivals_used", 0)) + 1,
-            used_reflection_questions=list(pending.get("used_reflection_questions") or []),
-        )
+        current_state = st.session_state.get("snake_game") or {}
+        st.session_state["snake_game"] = _revive_snake_state(child, current_state, pending)
     else:
-        st.session_state["block_puzzle_game"] = _new_block_state(
-            started=True,
-            tokens_spent=0,
-            active_modifiers=get_active_game_modifiers(child, "block_puzzle"),
-            revivals_used=int(pending.get("revivals_used", 0)) + 1,
-            used_reflection_questions=list(pending.get("used_reflection_questions") or []),
-        )
+        current_state = st.session_state.get("block_puzzle_game") or {}
+        st.session_state["block_puzzle_game"] = _revive_block_state(child, current_state, pending)
     st.session_state["pending_reflection_question"] = None
-    st.success("回答已保存，新的挑戰開始囉。")
+    st.success("回答已保存，復活成功，繼續剛剛的進度！")
     st.rerun()
+
+
+def _revive_snake_state(child: dict[str, Any], current_state: dict[str, Any], pending: dict[str, Any]) -> dict[str, Any]:
+    return _new_snake_state(
+        started=True,
+        tokens_spent=0,
+        active_modifiers=current_state.get("active_modifiers") or get_active_game_modifiers(child, "snake"),
+        revivals_used=int(pending.get("revivals_used", 0)) + 1,
+        used_reflection_questions=list(pending.get("used_reflection_questions") or []),
+        initial_score=int(current_state.get("score") or pending.get("score_before_game_over") or 0),
+        initial_length=int(current_state.get("length") or 3),
+        tokens_earned=int(current_state.get("tokens_earned") or 0),
+        awarded_thresholds=list(current_state.get("awarded_thresholds") or []),
+        all_fruits_eaten=list(current_state.get("all_fruits_eaten") or []),
+    )
+
+
+def _revive_block_state(child: dict[str, Any], current_state: dict[str, Any], pending: dict[str, Any]) -> dict[str, Any]:
+    return _new_block_state(
+        started=True,
+        tokens_spent=0,
+        active_modifiers=current_state.get("active_modifiers") or get_active_game_modifiers(child, "block_puzzle"),
+        revivals_used=int(pending.get("revivals_used", 0)) + 1,
+        used_reflection_questions=list(pending.get("used_reflection_questions") or []),
+        previous_state=current_state,
+    )
+
+
+def _fresh_block_pieces_for_board(board: list[list[Any]]) -> list[dict[str, Any] | None]:
+    for _ in range(8):
+        pieces = list(new_block_game().get("pieces") or [])
+        if has_any_valid_move(board, [piece for piece in pieces if piece is not None]):
+            return pieces
+    return list(new_block_game().get("pieces") or [])
 
 
 def _spend_start_cost(child_id: str) -> bool:

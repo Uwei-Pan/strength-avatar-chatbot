@@ -309,6 +309,15 @@ function createGame(gameId, data) {
   const scoreMultiplier = clamp(Number(data?.score_multiplier ?? 1), 1, 1.25)
   const speedMultiplier = clamp(Number(data?.speed_multiplier ?? 1), 0.78, 1.08)
   const shieldCharges = Math.max(0, Math.min(1, Math.round(Number(data?.shield_charges ?? 0))))
+  const initialScore = Math.max(
+    0,
+    Math.round(
+      Number(data?.initial_score ?? 0) > 0
+        ? Number(data?.initial_score ?? 0)
+        : Number(data?.bonus_start_score ?? 0)
+    )
+  )
+  const initialLength = Math.max(3, Math.round(Number(data?.initial_length ?? 3)))
   const state = {
     gameId,
     width,
@@ -325,12 +334,12 @@ function createGame(gameId, data) {
     buffLabel: data?.modifier_label ?? data?.buff_label ?? "",
     abilityEvents: [],
     radius: 11,
-    maxPoints: 58,
+    maxPoints: Math.max(58, initialLength * 18),
     points: [],
     foods: [],
     obstacles: [],
     difficultyLevel: 0,
-    score: Math.max(0, Math.round(Number(data?.bonus_start_score ?? 0))),
+    score: initialScore,
     serverTokens: Number(data?.tokens_earned ?? 0),
     localTokens: 0,
     sentThresholds: new Set((data?.awarded_thresholds ?? []).map(Number)),
@@ -829,6 +838,8 @@ def slither_snake_game(
             "score_multiplier": float(modifiers.get("score_multiplier") or 1.0),
             "speed_multiplier": float(modifiers.get("speed_multiplier") or 1.0),
             "bonus_start_score": int(modifiers.get("bonus_start_score") or 0),
+            "initial_score": int(state.get("score") or 0),
+            "initial_length": int(state.get("length") or 3),
             "shield_charges": int(modifiers.get("shield_charges") or 0),
             "turn_rate": float(modifiers.get("turn_rate") or 0.09),
             "strength_fruit_bonus": int(modifiers.get("strength_fruit_bonus") or 0),
