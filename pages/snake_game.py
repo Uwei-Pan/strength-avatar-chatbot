@@ -865,24 +865,23 @@ def _render_game_over_panel(state: dict[str, Any], game_type: str) -> None:
     reason = str(state.get("game_over_reason") or _default_game_over_reason(game_type))
     reason_label = GAME_OVER_LABELS.get(reason, "這一局結束了！")
     summary = state.get("final_summary") or "這一局已經結束，可以選擇退出，或先回答一個小問題再挑戰。"
+    summary_html = _game_over_summary_html(state, game_type, str(summary))
     modifier_label = _modifier_status_label(state.get("active_modifiers") or state.get("active_buff"))
     ability_line = _ability_event_summary(state.get("ability_events", []))
     revivals_used = int(state.get("revivals_used") or 0)
     can_revive = revivals_used < MAX_REVIVALS_PER_ROUND
-    st.markdown(
-        f"""
-        <div class="game-over-card">
-            <strong>{escape(game_label)}結束</strong><br>
-            原因：{escape(reason_label)}<br>
-            本次分數：{int(state.get("score", 0))}｜本次獲得代幣：+{int(state.get("tokens_earned", 0))}<br>
-            復活機會：{revivals_used}/{MAX_REVIVALS_PER_ROUND}<br>
-            本局助力：{escape(modifier_label)}<br>
-            {escape(ability_line)}<br>
-            {escape(str(summary))}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    card_html = (
+        '<div class="game-over-card">'
+        f"<strong>{escape(game_label)}結束</strong><br>"
+        f"原因：{escape(reason_label)}<br>"
+        f"本次分數：{int(state.get('score', 0))}｜本次獲得代幣：+{int(state.get('tokens_earned', 0))}<br>"
+        f"復活機會：{revivals_used}/{MAX_REVIVALS_PER_ROUND}<br>"
+        f"本局助力：{escape(modifier_label)}<br>"
+        f"{escape(ability_line)}<br>"
+        f"{summary_html}"
+        "</div>"
     )
+    st.markdown(card_html, unsafe_allow_html=True)
 
     col_exit, col_replay = st.columns(2)
     with col_exit:
@@ -961,23 +960,86 @@ def _default_game_over_reason(game_type: str) -> str:
     return "no_valid_moves" if game_type == "block_puzzle" else "hit_wall"
 
 
+def _game_over_summary_html(state: dict[str, Any], game_type: str, summary: str) -> str:
+    if game_type == "snake":
+        return _snake_strength_summary_html(state.get("all_fruits_eaten", []))
+    return f'<div class="game-over-summary">{escape(summary)}</div>'
+
+
 def _snake_strength_summary(fruits_eaten: list[dict[str, Any]]) -> str:
-    strength_fruits = [
-        fruit
-        for fruit in fruits_eaten
-        if fruit.get("is_strength_fruit") or str(fruit.get("fruit_name", "")).endswith("果實")
-    ]
+    strength_fruits = _snake_strength_fruits(fruits_eaten)
     if not strength_fruits:
         return "這一局還沒有吃到優勢果實，下次可以追追看那顆會移動的大果實。"
-    parts = []
+    total_points = sum(int(fruit.get("points") or 0) for fruit in strength_fruits)
+    strengths = _snake_strength_groups(strength_fruits)
+    strength_names = "、".join(item["strength_name"] for item in strengths)
+    return f"吃到優勢果實 {len(strength_fruits)} 顆，共 +{total_points} 分。看見：{strength_names}。"
+
+
+def _snake_strength_summary_html(fruits_eaten: Any) -> str:
+    strength_fruits = _snake_strength_fruits(fruits_eaten if isinstance(fruits_eaten, list) else [])
+    if not strength_fruits:
+        return (
+            '<div class="game-over-summary game-over-fruit-summary">'
+            '<div class="fruit-summary-title">優勢果實</div>'
+            '<div class="fruit-summary-muted">本局尚未吃到。下次可以追追看會移動的大果實。</div>'
+            "</div>"
+        )
+
+    total_points = sum(int(fruit.get("points") or 0) for fruit in strength_fruits)
+    latest_score = max(int(fruit.get("score_after") or 0) for fruit in strength_fruits)
+    rows = []
+    tips = []
+    for item in _snake_strength_groups(strength_fruits):
+        count_label = f"｜{item['count']} 顆" if item["count"] > 1 else ""
+        rows.append(
+            '<div class="fruit-summary-row">'
+            f'<span>{escape(item["strength_name"])}</span>'
+            f'<strong>+{item["points"]} 分{count_label}</strong>'
+            "</div>"
+        )
+        tips.append(
+            '<div class="fruit-summary-tip">'
+            f'<span>{escape(item["strength_name"])}</span>'
+            f'<p>{escape(_strength_practice_tip(item["strength_name"]))}</p>'
+            "</div>"
+        )
+
+    return (
+        '<div class="game-over-summary game-over-fruit-summary">'
+        '<div class="fruit-summary-title">優勢果實</div>'
+        '<div class="fruit-summary-stats">'
+        f"<span>{len(strength_fruits)} 顆</span>"
+        f"<span>共 +{total_points} 分</span>"
+        f"<span>總分 {latest_score}</span>"
+        "</div>"
+        f'<div class="fruit-summary-list">{"".join(rows)}</div>'
+        '<div class="fruit-summary-title fruit-summary-title-small">下一步練習</div>'
+        f'<div class="fruit-summary-tips">{"".join(tips)}</div>'
+        "</div>"
+    )
+
+
+def _snake_strength_fruits(fruits_eaten: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        fruit
+        for fruit in fruits_eaten
+        if isinstance(fruit, dict)
+        and (fruit.get("is_strength_fruit") or str(fruit.get("fruit_name", "")).endswith("果實"))
+    ]
+
+
+def _snake_strength_groups(strength_fruits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
     for fruit in strength_fruits:
         fruit_name = str(fruit.get("fruit_name") or "優勢果實")
         strength_name = str(fruit.get("strength_name") or fruit_name.replace("果實", ""))
-        points = int(fruit.get("points") or 0)
-        score_after = int(fruit.get("score_after") or 0)
-        suggestion = _strength_practice_tip(strength_name)
-        parts.append(f"{fruit_name} +{points} 分（吃到後總分 {score_after}）。下次可以這樣做到「{strength_name}」：{suggestion}")
-    return "、".join(parts)
+        if not strength_name:
+            strength_name = "優勢"
+        item = grouped.setdefault(strength_name, {"strength_name": strength_name, "points": 0, "count": 0})
+        item["points"] += int(fruit.get("points") or 0)
+        item["count"] += 1
+    return sorted(grouped.values(), key=lambda item: (-int(item["points"]), str(item["strength_name"])))
 
 
 def _ability_event_summary(events: Any) -> str:
@@ -993,12 +1055,12 @@ def _ability_event_summary(events: Any) -> str:
 
 def _strength_practice_tip(strength_name: str) -> str:
     tips = {
-        "仁慈": "主動問一句「你需要幫忙嗎？」或分享一個小資源。",
-        "勤奮": "把大任務拆成一個 5 分鐘能完成的小步驟，先做第一步。",
-        "好奇心": "遇到不懂的地方先問一個為什麼，再試著找一個答案。",
-        "勇敢": "害怕時先深呼吸，選一件安全但有一點挑戰的小事去試。",
-        "感激": "把想謝謝的人和原因說出來，或寫成一句小卡片。",
-        "團體合作": "先聽隊友的想法，再說出自己可以負責的一件事。",
-        "自我規範": "想衝動前停三秒，提醒自己先選一個比較好的做法。",
+        "仁慈": "問一句：「需要幫忙嗎？」",
+        "勤奮": "先完成一個 5 分鐘小步驟。",
+        "好奇心": "先問一個為什麼，再找答案。",
+        "勇敢": "深呼吸，試一件小挑戰。",
+        "感激": "說出想謝謝的人和原因。",
+        "團體合作": "先聽隊友，再說自己能做什麼。",
+        "自我規範": "停三秒，再選更好的做法。",
     }
-    return tips.get(strength_name, "想一件今天可以練習的小行動，慢慢做一次就很好。")
+    return tips.get(strength_name, "選一個小行動，今天練一次。")

@@ -185,13 +185,33 @@ CSS = """
 
 .block-cell {
   position: relative;
+  display: grid;
+  place-items: stretch;
   overflow: hidden;
   aspect-ratio: 1;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: 0;
   border: 1px solid #582065;
   border-radius: 3px;
   background: rgba(23, 4, 29, 0.82);
   cursor: pointer;
   transition: filter 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+.block-cell::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+.block-cell > .block-cube {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .block-cell:hover {
@@ -207,6 +227,97 @@ CSS = """
 .block-cell.preview-invalid {
   outline: 2px solid rgba(255, 97, 112, 0.9);
   background: rgba(255, 97, 112, 0.18);
+}
+
+.block-cell.clearing-cell {
+  z-index: 3;
+  overflow: visible;
+  border-color: rgba(255, 226, 138, 0.92);
+  animation: blockCellFlash 420ms ease-out both;
+}
+
+.block-cell.clearing-cell > .block-cube {
+  transform-origin: center;
+  animation: blockBurst 420ms cubic-bezier(.17,.84,.42,1) both;
+}
+
+.block-cell.clearing-cell::before,
+.block-cell.clearing-cell::after {
+  --spark-rotate: 0deg;
+  content: "";
+  position: absolute;
+  inset: 8%;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 0%, #fff7b1 0 7%, transparent 8%),
+    radial-gradient(circle at 92% 30%, #ff7adf 0 6%, transparent 7%),
+    radial-gradient(circle at 72% 92%, #75f6e7 0 6%, transparent 7%),
+    radial-gradient(circle at 12% 78%, #fff 0 5%, transparent 6%),
+    radial-gradient(circle at 8% 24%, #ffcf6f 0 6%, transparent 7%);
+  animation: blockSparkBurst 420ms ease-out both;
+}
+
+.block-cell.clearing-cell::after {
+  inset: 18%;
+  --spark-rotate: 36deg;
+  animation-delay: 45ms;
+}
+
+@keyframes blockBurst {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1.05) saturate(1.1);
+  }
+  38% {
+    opacity: 1;
+    transform: scale(1.16) rotate(3deg);
+    filter: brightness(1.85) saturate(1.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.22) rotate(13deg);
+    filter: brightness(2.4) saturate(1.8);
+  }
+}
+
+@keyframes blockCellFlash {
+  0% {
+    box-shadow: 0 0 0 rgba(255, 226, 138, 0);
+  }
+  42% {
+    box-shadow: 0 0 18px rgba(255, 226, 138, 0.9), 0 0 28px rgba(255, 83, 216, 0.48);
+  }
+  100% {
+    box-shadow: 0 0 4px rgba(255, 226, 138, 0.18);
+  }
+}
+
+@keyframes blockSparkBurst {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--spark-rotate)) scale(0.2);
+  }
+  34% {
+    opacity: 1;
+    transform: rotate(var(--spark-rotate)) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--spark-rotate)) scale(2.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block-cell.clearing-cell,
+  .block-cell.clearing-cell > .block-cube,
+  .block-cell.clearing-cell::before,
+  .block-cell.clearing-cell::after {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
 }
 
 .block-cube {
@@ -524,6 +635,8 @@ function createState(gameId, data) {
     undoSnapshot: null,
     dragging: null,
     preview: null,
+    clearingCells: new Set(),
+    resolvingClear: false,
     gameOver: false,
     notice: "拖曳下方方塊到棋盤上，放開後就會放置。",
   }
@@ -537,7 +650,7 @@ function render(root, state, setTriggerValue) {
   root.querySelector("#buff").textContent = state.buffLabel ? `本局助力：${state.buffLabel}${rescueText}` : "本局沒有額外助力"
   const undoButton = root.querySelector("#undo")
   if (undoButton) {
-    undoButton.disabled = !state.undoSnapshot || state.gameOver
+    undoButton.disabled = !state.undoSnapshot || state.gameOver || state.resolvingClear
     undoButton.onclick = () => undoLastMove(state, root, setTriggerValue)
   }
 
@@ -551,6 +664,7 @@ function render(root, state, setTriggerValue) {
       button.dataset.row = String(rowIndex)
       button.dataset.col = String(colIndex)
       button.setAttribute("aria-label", `放在 ${rowIndex + 1}, ${colIndex + 1}`)
+      if (state.clearingCells?.has(cellKey(rowIndex, colIndex))) button.classList.add("clearing-cell")
       if (cell) button.appendChild(cube(cell))
       const previewInfo = previewForCell(state, rowIndex, colIndex)
       if (previewInfo) {
@@ -592,7 +706,7 @@ function render(root, state, setTriggerValue) {
 }
 
 function place(state, row, col, setTriggerValue, root, pieceIndex = state.selected) {
-  if (state.gameOver) return
+  if (state.gameOver || state.resolvingClear) return
 
   const piece = state.pieces[pieceIndex]
   // 選到的格子已用完
@@ -613,7 +727,8 @@ function place(state, row, col, setTriggerValue, root, pieceIndex = state.select
   piece.cells.forEach(([r, c]) => {
     state.board[row + r][col + c] = { color: piece.color, shape: piece.shape }
   })
-  const cleared = clearLines(state.board)
+  const lines = detectFullLines(state.board)
+  const cleared = lines.count
   const placedScore = piece.cells.length * 10
   const lineScore = cleared * 50
   const combo = Math.max(0, cleared - 1) * 25
@@ -635,6 +750,24 @@ function place(state, row, col, setTriggerValue, root, pieceIndex = state.select
   // 標記為已用
   state.pieces[pieceIndex] = null
 
+  if (cleared) {
+    state.resolvingClear = true
+    state.clearingCells = new Set(lines.cells.map(([cellRow, cellCol]) => cellKey(cellRow, cellCol)))
+    state.notice = `漂亮！${cleared} 條線正在爆裂，得到 ${earnedScore} 分。`
+    render(root, state, setTriggerValue)
+    setTimeout(() => {
+      clearDetectedLines(state.board, lines)
+      state.clearingCells = new Set()
+      state.resolvingClear = false
+      finishPlacement(state, cleared, earnedScore, root, setTriggerValue)
+    }, 430)
+    return
+  }
+
+  finishPlacement(state, cleared, earnedScore, root, setTriggerValue)
+}
+
+function finishPlacement(state, cleared, earnedScore, root, setTriggerValue) {
   // 三個都用完才補充新的三個
   if (state.pieces.every(p => p === null)) {
     state.pieces = [newPiece(), newPiece(), newPiece()]
@@ -680,7 +813,7 @@ function place(state, row, col, setTriggerValue, root, pieceIndex = state.select
 }
 
 function startDrag(root, state, pieceIndex, event, setTriggerValue) {
-  if (state.gameOver || !state.pieces[pieceIndex]) return
+  if (state.gameOver || state.resolvingClear || !state.pieces[pieceIndex]) return
   event.preventDefault()
   event.stopPropagation()
   state.selected = pieceIndex
@@ -703,6 +836,7 @@ function startDrag(root, state, pieceIndex, event, setTriggerValue) {
 }
 
 function updateDragPreview(root, state, event, setTriggerValue) {
+  if (state.resolvingClear) return
   if (!state.dragging) return
   event.preventDefault()
   renderDragGhost(root, state, event)
@@ -727,6 +861,7 @@ function updateDragPreview(root, state, event, setTriggerValue) {
 }
 
 function finishDrag(root, state, event, setTriggerValue) {
+  if (state.resolvingClear) return
   if (!state.dragging) return
   updateDragPreview(root, state, event, setTriggerValue)
   const preview = state.preview
@@ -773,6 +908,7 @@ function makeUndoSnapshot(state) {
 }
 
 function undoLastMove(state, root, setTriggerValue) {
+  if (state.resolvingClear) return
   const snapshot = state.undoSnapshot
   if (!snapshot) {
     state.notice = "目前沒有可以返回的步驟。"
@@ -928,7 +1064,7 @@ function hasMove(board, pieces) {
   })
 }
 
-function clearLines(board) {
+function detectFullLines(board) {
   const rows = []
   const cols = []
   for (let row = 0; row < size; row += 1) {
@@ -941,13 +1077,37 @@ function clearLines(board) {
     }
     if (full) cols.push(col)
   }
+  const cells = []
+  const seen = new Set()
   rows.forEach((row) => {
-    for (let col = 0; col < size; col += 1) board[row][col] = null
+    for (let col = 0; col < size; col += 1) {
+      const key = cellKey(row, col)
+      if (!seen.has(key)) {
+        seen.add(key)
+        cells.push([row, col])
+      }
+    }
   })
   cols.forEach((col) => {
-    for (let row = 0; row < size; row += 1) board[row][col] = null
+    for (let row = 0; row < size; row += 1) {
+      const key = cellKey(row, col)
+      if (!seen.has(key)) {
+        seen.add(key)
+        cells.push([row, col])
+      }
+    }
   })
-  return rows.length + cols.length
+  return { rows, cols, cells, count: rows.length + cols.length }
+}
+
+function clearDetectedLines(board, lines) {
+  lines.cells.forEach(([row, col]) => {
+    board[row][col] = null
+  })
+}
+
+function cellKey(row, col) {
+  return `${row}:${col}`
 }
 
 function cube(cell) {

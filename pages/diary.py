@@ -4,11 +4,12 @@ import streamlit as st
 
 from database.db_connection import DatabaseConnectionError
 from services.child_service import get_child
-from services.diary_service import create_diary_entry, list_diary_entries
+from services.diary_service import create_diary_entry, delete_diary_entry, list_diary_entries
 
 
 def render() -> None:
     child_id = st.session_state.get("child_id")
+    st.session_state.setdefault("pending_diary_delete_id", None)
     try:
         child = get_child(child_id)
     except DatabaseConnectionError as exc:
@@ -78,14 +79,56 @@ def render() -> None:
         return
 
     for entry in entries:
-        with st.expander(f"{entry['created_at']}｜+{entry['tokens_earned']} 代幣"):
-            st.write(entry["content"])
-            if entry.get("ai_reply"):
-                st.markdown(f"**小幫手：** {entry['ai_reply']}")
-            strengths = _parse_strengths(entry.get("detected_strengths_json"))
-            if strengths:
-                st.caption("優勢")
-                _render_strength_chips(strengths)
+        _render_diary_entry(child_id, entry)
+
+
+def _render_diary_entry(child_id: str, entry: dict) -> None:
+    entry_id = int(entry["id"])
+    pending_delete_id = st.session_state.get("pending_diary_delete_id")
+    with st.expander(f"{entry['created_at']}｜+{entry['tokens_earned']} 代幣"):
+        st.write(entry["content"])
+        if entry.get("ai_reply"):
+            st.markdown(f"**小幫手：** {entry['ai_reply']}")
+        strengths = _parse_strengths(entry.get("detected_strengths_json"))
+        if strengths:
+            st.caption("優勢")
+            _render_strength_chips(strengths)
+
+        if pending_delete_id == entry_id:
+            st.warning("確定要刪除這篇日記嗎？刪除後就不能復原。")
+            confirm_col, cancel_col = st.columns(2)
+            with confirm_col:
+                if st.button(
+                    "確認刪除",
+                    icon=":material/delete:",
+                    key=f"diary_confirm_delete_{entry_id}",
+                    use_container_width=True,
+                ):
+                    try:
+                        delete_diary_entry(child_id, entry_id)
+                    except (DatabaseConnectionError, ValueError) as exc:
+                        st.error(str(exc))
+                    else:
+                        st.session_state["pending_diary_delete_id"] = None
+                        st.success("日記已刪除。")
+                        st.rerun()
+            with cancel_col:
+                if st.button(
+                    "取消",
+                    icon=":material/close:",
+                    key=f"diary_cancel_delete_{entry_id}",
+                    use_container_width=True,
+                ):
+                    st.session_state["pending_diary_delete_id"] = None
+                    st.rerun()
+        elif st.button(
+            "刪除日記",
+            icon=":material/delete_outline:",
+            key=f"diary_request_delete_{entry_id}",
+            use_container_width=True,
+        ):
+            st.session_state["pending_diary_delete_id"] = entry_id
+            st.rerun()
 
 
 def _parse_strengths(raw_value):

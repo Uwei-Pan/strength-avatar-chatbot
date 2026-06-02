@@ -70,6 +70,28 @@ def list_diary_entries(child_id: str) -> list[dict[str, Any]]:
     )
 
 
+def delete_diary_entry(child_id: str, entry_id: int) -> None:
+    entry = fetch_one(
+        """
+        SELECT id
+        FROM diary_entries
+        WHERE id = %s AND child_id = %s
+        LIMIT 1
+        """,
+        (entry_id, child_id),
+    )
+    if not entry:
+        raise ValueError("找不到這篇日記。")
+
+    execute(
+        """
+        DELETE FROM diary_entries
+        WHERE id = %s AND child_id = %s
+        """,
+        (entry_id, child_id),
+    )
+
+
 def _calculate_diary_tokens(content: str, *, has_confirmed_strength: bool) -> tuple[int, list[str]]:
     cleaned = content.strip()
     if not cleaned:

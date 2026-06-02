@@ -563,6 +563,85 @@ def _inject_style() -> None:
             background: linear-gradient(135deg, #fff7d6 0%, #e7f5ff 100%);
         }
 
+        .game-over-summary {
+            margin-top: 0.65rem;
+        }
+
+        .game-over-fruit-summary {
+            display: grid;
+            gap: 0.45rem;
+            padding: 0.72rem;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.54);
+            border: 1px solid rgba(255, 193, 88, 0.34);
+        }
+
+        .fruit-summary-title {
+            color: var(--kid-ink);
+            font-size: 0.95rem;
+            font-weight: 900;
+            line-height: 1.25;
+        }
+
+        .fruit-summary-title-small {
+            margin-top: 0.1rem;
+            color: var(--kid-muted);
+            font-size: 0.88rem;
+        }
+
+        .fruit-summary-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .fruit-summary-stats span {
+            display: inline-flex;
+            align-items: center;
+            min-height: 26px;
+            padding: 0.14rem 0.55rem;
+            border-radius: 999px;
+            color: #3a4264;
+            background: #fff2b5;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .fruit-summary-list,
+        .fruit-summary-tips {
+            display: grid;
+            gap: 0.34rem;
+        }
+
+        .fruit-summary-row,
+        .fruit-summary-tip {
+            display: grid;
+            grid-template-columns: minmax(4.5rem, 0.8fr) 1.4fr;
+            gap: 0.45rem;
+            align-items: start;
+            padding: 0.42rem 0.55rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.52);
+        }
+
+        .fruit-summary-row span,
+        .fruit-summary-tip span {
+            color: var(--kid-ink);
+            font-weight: 900;
+        }
+
+        .fruit-summary-row strong {
+            color: #2865b5;
+            text-align: right;
+        }
+
+        .fruit-summary-tip p,
+        .fruit-summary-muted {
+            margin: 0;
+            color: var(--kid-muted);
+            line-height: 1.45;
+        }
+
         .game-status-strip {
             display: flex;
             flex-wrap: wrap;
@@ -1840,6 +1919,16 @@ def _inject_style() -> None:
             .game-prep-card,
             .game-loadout-card {
                 margin-bottom: 0.56rem;
+            }
+
+            .fruit-summary-row,
+            .fruit-summary-tip {
+                grid-template-columns: 1fr;
+                gap: 0.18rem;
+            }
+
+            .fruit-summary-row strong {
+                text-align: left;
             }
         }
         </style>
