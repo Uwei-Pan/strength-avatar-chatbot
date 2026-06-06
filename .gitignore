@@ -13,6 +13,10 @@ data/chat_sessions/
 *.log
 .codex_tmp/
 
+# Large local report/poster artifacts.
+/人工智慧實務專題海報.pdf
+/組別1_孩有AI_書面報告.pdf
+
 # Local agent skills installed for this workspace.
 .agents/skills/*
 !.agents/skills/find-skills/
