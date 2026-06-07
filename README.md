@@ -4,30 +4,37 @@ Strength Avatar Chatbot is a Streamlit + MySQL MVP for child-centered strengths 
 
 The project is designed as a portfolio-friendly prototype: it demonstrates a full data-backed Streamlit application, AI-service fallback handling, gamified UX, and domain modeling around VIA-style character strengths.
 
-## Features
+## Tech Stack / 技術棧
 
-- Child login with seeded demo accounts
-- AI companion chat for encouragement, emotion reflection, and strengths detection
-- Mood diary with AI-assisted feedback and cached analysis results
-- Task checklist with counselor review password support
-- Growth dashboard showing strength evidence, distribution, trends, and source breakdowns
-- Game zone with snake and block puzzle games
-- Token economy for chat, diary, games, tasks, and shop purchases
-- Avatar and outfit system connected to unlocked strengths and in-game effects
-- MySQL persistence for users, chat sessions, diary entries, games, rewards, outfits, and strength evidence
-- Gemini API integration with local rule-based fallback when no valid API key is configured
+| 層級 | 技術 | 用途 |
+| --- | --- | --- |
+| 前端 / UI | Streamlit | 建立多頁式 Web 介面，處理使用者互動 |
+| 主要語言 | Python 3.11 | 專案主要開發語言 |
+| 服務層 | `services/` Python modules | 將 AI、代幣、日記、遊戲、商店、儀表板邏輯和頁面 UI 分離 |
+| 資料庫 | MySQL | 儲存使用者、聊天、日記、優勢、代幣、遊戲、服裝與任務資料 |
+| 資料庫連線 | PyMySQL | 讓 Python service 連接 MySQL |
+| AI 服務 | Google Gemini API | 產生兒少友善回覆、日記回饋、優勢判斷與遊戲反思驗證 |
+| 預設 AI 模型 | `gemini-2.5-flash-lite` | 專案預設使用的 Gemini Flash 模型 |
+| AI fallback | Rule-based / mock mode | 沒有有效 Gemini API key 時，仍能用本機規則維持 demo 流程 |
+| 資料視覺化 | Pandas, Altair | 建立成長儀表板中的圖表與統計摘要 |
+| 環境設定 | python-dotenv, Streamlit secrets | 讀取本機 `.env` 與部署平台 secrets |
+| 臨時展示 | Cloudflare Quick Tunnel | 將本機 Streamlit app 暫時公開成 demo 網址 |
 
-## Tech Stack
+## 系統功能
 
-| Area | Technology |
+| 功能模組 | 說明 |
 | --- | --- |
-| App framework | Streamlit |
-| Language | Python 3.11 |
-| Database | MySQL |
-| AI service | Google Gemini API, default model `gemini-2.5-flash-lite` |
-| Data access | PyMySQL |
-| Charts | Pandas, Altair |
-| Environment config | python-dotenv, Streamlit secrets |
+| 登入系統 | 提供 seed data 中的 demo 學生帳號，並用 Streamlit session state 保存登入狀態 |
+| 首頁儀表板 | 顯示孩子目前的角色、代幣與主要功能入口 |
+| AI 聊天 | 孩子可以和 AI 小幫手對話；系統會判斷情緒、可能展現的優勢與代幣獎勵 |
+| 心情日記 | 儲存日記內容，透過 Gemini 或 fallback 規則產生回饋，並記錄偵測到的品格優勢 |
+| 任務小清單 | 孩子可以建立與完成任務；任務確認流程可透過環境變數設定輔導員密碼 |
+| 成長儀表板 | 統整聊天、日記、遊戲與輔導紀錄，呈現優勢小卡、分布圖、趨勢與資料來源 |
+| 遊戲樂園 | 包含貪食蛇與方塊消除，遊戲可獲得代幣，結束後也有反思問題 |
+| 角色與服裝 | 孩子可以選擇角色和已解鎖服裝，部分服裝與優勢或遊戲效果連動 |
+| 服裝商店 | 孩子可以使用代幣購買服裝 |
+| 代幣系統 | 記錄聊天、日記、任務、遊戲、商店等行為造成的代幣增加與消耗 |
+| MySQL 持久化 | 將資料存入 `children`、`chat_sessions`、`diary_entries`、`child_strengths`、`token_transactions`、`game_reflections` 等資料表 |
 
 ## Project Structure
 
@@ -47,31 +54,103 @@ The project is designed as a portfolio-friendly prototype: it demonstrates a ful
 └── runtime.txt
 ```
 
-## Prerequisites
+## Backend Logic / 後端邏輯位置
+
+本專案目前是 Streamlit MVP，還沒有拆成獨立的 FastAPI / REST API 後端。現階段的「後端邏輯」主要寫在 `services/`，而 `pages/` 負責從 Streamlit 畫面呼叫這些 service。整體資料流可以理解成：
+
+```text
+Streamlit pages -> Python services -> MySQL / Gemini API
+```
+
+快速註解：`pages/` 負責使用者看到和點擊的畫面；`services/` 負責商業邏輯、AI 呼叫、代幣變動和資料庫操作。
+
+### 1. Database Connection and Schema / 資料庫連線與資料表
+
+資料庫連線邏輯從 `database/db_connection.py` 開始。這個檔案會從環境變數讀取 MySQL 設定，建立資料庫連線，並提供 `fetch_one`、`fetch_all`、`execute` 這些共用 helper。大部分 service 都透過這些 helper 操作資料庫，而不是各自重複建立連線。
+
+`database/schema.sql` 定義所有資料表，例如 children、strengths、chat logs、chat sessions、diary entries、token transactions、game sessions、game reflections、outfits、tasks 和 diary analysis cache。`database/init_db.py` 則負責初始化資料庫：建立 database、套用 schema，並匯入 `database/seed_data.sql` 的 demo 資料。
+
+快速註解：資料庫連線、資料表設計和初始資料都在 `database/`。如果想知道系統存了哪些資料，先看 `database/schema.sql`。
+
+### 2. AI and Gemini Logic / AI 與 Gemini 邏輯
+
+Gemini 相關邏輯寫在 `services/ai_service.py`。這個檔案會讀取 `GEMINI_API_KEY`、選擇 Gemini model、建立 prompt、呼叫 Gemini、解析 JSON 回傳，並把 AI 結果整理成前端可以使用的固定格式。
+
+它主要處理三種 AI 場景：聊天訊息分析、日記回饋分析、遊戲反思驗證。如果沒有設定有效的 Gemini API key，這個 service 會自動改用 rule-based / mock fallback，讓本機 demo 不會因為 AI key 缺失而壞掉。
+
+快速註解：Gemini API key、prompt、AI JSON 解析和 fallback 都集中在 `services/ai_service.py`。
+
+### 3. Chat Backend Logic / 聊天後端邏輯
+
+聊天畫面由 `pages/chat.py` 呈現，但後端邏輯分散在多個 service。`services/ai_service.py` 負責分析孩子的訊息，`services/chat_reward_service.py` 判斷這次對話是否能獲得代幣，`services/token_service.py` 更新代幣，`services/chat_session_service.py` 儲存完整聊天 session，`services/strength_service.py` 儲存聊天紀錄和偵測到的優勢。
+
+聊天流程是：使用者送出訊息後，`pages/chat.py` 呼叫 AI 分析；接著 reward logic 計算代幣事件；代幣變動寫入 MySQL；最後完整聊天紀錄會存到 `chat_sessions` 和 `chat_logs`。
+
+快速註解：聊天不是單純顯示訊息，它同時串起 AI 分析、獎勵計算、代幣更新、聊天儲存與優勢證據儲存。
+
+### 4. Diary Backend Logic / 日記後端邏輯
+
+日記後端邏輯主要在 `services/diary_service.py`。它會接收日記文字，先檢查是否已經有快取的 AI 分析結果；如果沒有，就呼叫 `services/ai_service.py` 分析日記，接著計算日記代幣、儲存日記內容，並保存偵測到的優勢。
+
+最後的日記結果會存進 `diary_entries`，重複的 AI 分析則可以快取到 `diary_analysis_cache`。這樣同一篇日記不需要一直重複呼叫 Gemini。
+
+快速註解：`services/diary_service.py` 控制完整日記流程：分析、快取、給代幣、存日記、存優勢。
+
+### 5. Token, Task, Shop, and Outfit Logic / 代幣、任務、商店與服裝邏輯
+
+代幣變動由 `services/token_service.py` 處理。它會更新孩子的 token balance，並把每一次增加或扣除寫進 `token_transactions`，讓獎勵和消費都有紀錄可查。
+
+任務邏輯在 `services/todo_service.py`，輔導員審核流程則由 `pages/todo.py` 觸發。商店購買由 `services/shop_service.py` 處理，包含檢查是否已擁有服裝、確認代幣是否足夠、解鎖服裝、扣除代幣和記錄交易。角色與服裝資料則由 `services/avatar_assets.py` 和 `services/child_service.py` 支援。
+
+快速註解：代幣變動應該透過 `services/token_service.py` 或會記錄交易的 service function，不應該在 UI 直接手動改 token 數字。
+
+### 6. Game and Reflection Logic / 遊戲與反思邏輯
+
+遊戲畫面主要由 `pages/snake_game.py` 和 `games/` 裡的元件控制，但遊戲紀錄與持久化邏輯在 `services/game_service.py`。這個 service 會建立遊戲 session、記錄遊戲結果、處理遊戲代幣獎勵、防止重複發獎，並儲存遊戲反思答案。
+
+遊戲反思驗證會使用 `services/ai_service.validate_reflection_answer()`。如果 Gemini 可用，就用 Gemini 輔助判斷；如果 Gemini 沒有設定，仍然有本機規則可以做基本驗證。
+
+快速註解：遊戲畫面在 `pages/` 和 `games/`；遊戲紀錄、代幣獎勵和反思儲存走 `services/game_service.py`。
+
+### 7. Growth Dashboard Logic / 成長儀表板邏輯
+
+成長儀表板的資料整理邏輯寫在 `services/growth_dashboard_service.py`。它會讀取日記、遊戲反思、聊天紀錄、已完成任務和已儲存的優勢證據，然後整理成摘要、圖表、趨勢和優勢證據卡。
+
+`pages/growth_dashboard.py` 主要負責畫面呈現，比較重的資料整理和統計邏輯放在 service layer，讓頁面程式碼比較專注在 UI。
+
+快速註解：如果想知道儀表板如何決定要顯示哪些優勢，主要看 `services/growth_dashboard_service.py`。
+
+## Installation
+
+### 1. Prerequisites
+
+Make sure the following tools are available before running the project:
 
 - Python 3.11+
 - MySQL 8.0+ or a MySQL-compatible database
-- Optional: Google Gemini API key
-- Optional for public local sharing: `cloudflared`
+- Optional: Google Gemini API key for real AI responses
+- Optional: `cloudflared` for temporary public demos
 
-Gemini is optional for local exploration. Without a valid API key, the app still runs with rule-based mock responses. MySQL is required because user data and app state are persisted in the database.
+Gemini is optional for local exploration. Without a valid API key, the app still runs with rule-based / mock fallback responses. MySQL is required because user data and app state are persisted in the database.
 
-## Quick Start
-
-1. Clone the repository.
+### 2. Clone the Repository
 
 ```bash
 git clone <your-repo-url>
 cd strength-avatar-chatbot
 ```
 
-2. Install dependencies.
+### 3. Install Python Dependencies
+
+The easiest setup path is the included script:
 
 ```bash
 scripts/setup_local.sh
 ```
 
-Manual setup also works:
+This script creates `.venv`, installs packages from `requirements.txt`, and copies `.env.example` to `.env` if `.env` does not exist.
+
+You can also set up the environment manually:
 
 ```bash
 python3 -m venv .venv
@@ -79,13 +158,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. Create local environment settings.
+### 4. Configure Environment Variables
 
 ```bash
 cp .env.example .env
 ```
 
-You can start with the default local MySQL settings, then add or adjust values as needed:
+Fill in `.env` according to your local MySQL settings. A typical local setup looks like this:
 
 ```env
 DB_HOST=localhost
@@ -97,7 +176,15 @@ GEMINI_API_KEY=your_api_key_here
 TASK_REVIEW_PASSWORD=change_me
 ```
 
-4. Start MySQL and initialize the database.
+Important notes:
+
+- `GEMINI_API_KEY` is optional. If it is missing or still set to a placeholder value, the app uses fallback logic.
+- `TASK_REVIEW_PASSWORD` is used by the counselor review flow.
+- Do not commit real `.env`, `.env.local`, `.envc`, or `.streamlit/secrets.toml` files.
+
+### 5. Initialize the MySQL Database
+
+Start MySQL first, then run:
 
 ```bash
 python database/init_db.py
@@ -105,7 +192,7 @@ python database/init_db.py
 
 This creates the configured database, applies `database/schema.sql`, and loads `database/seed_data.sql`.
 
-5. Run the app.
+### 6. Run the Streamlit App
 
 ```bash
 scripts/run_local.sh
